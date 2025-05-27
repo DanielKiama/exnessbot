@@ -1,5 +1,3 @@
-
-
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "@remix-run/react";
 import { auth, db } from "~/utils/firebase";
@@ -39,17 +37,23 @@ export default function Dashboard() {
   const [codes, setCodes] = useState<AccessCode[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingCodes, setLoadingCodes] = useState(true); 
-  const [loadingUsers, setLoadingUsers] = useState(true); 
+  const [loadingCodes, setLoadingCodes] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
   const [generatedCode, setGeneratedCode] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [groupByMonth, setGroupByMonth] = useState(true); // Changed from false to true
-  
-  // Format YYYY-MM-DD → "DD MON YYYY"
+  const [groupByMonth, setGroupByMonth] = useState(true);
+
+  // Broadcast state
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [targetGroup, setTargetGroup] = useState("active");
+  const [isSending, setIsSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState("");
+
+  // Helper to format dates
   const formatDate = (d: Date) => {
     const day = d.getDate().toString().padStart(2, "0");
     const month = d
@@ -58,24 +62,18 @@ export default function Dashboard() {
     const year = d.getFullYear();
     return `${day} ${month} ${year}`;
   };
-  
 
-  // Auth redirect + data fetch
+  // Auth redirect + initial data fetch
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
       if (!u) navigate("/login");
       setUser(u);
     });
-    
-    // Fetch data independently
-    
     fetchCodes();
     fetchUsers();
-      
     return () => unsub();
   }, [navigate]);
 
-  // Load access codes
   async function fetchCodes() {
     setLoadingCodes(true);
     try {
@@ -87,15 +85,13 @@ export default function Dashboard() {
         used: d.data().used as boolean,
       }));
       setCodes(list);
-    } catch (err) {
-      console.error("Error fetching codes:", err);
+    } catch {
       setCodes([]);
     } finally {
       setLoadingCodes(false);
     }
   }
 
-  // Load users & filter out archived
   async function fetchUsers() {
     setLoadingUsers(true);
     try {
@@ -107,82 +103,55 @@ export default function Dashboard() {
         expiry_date: d.data().expiry_date as Timestamp,
         archived: d.data().archived as boolean || false,
       }));
-      
-      // Sort users by expiry date (ascending - earliest expiry first)
-      const sortedUsers = list
+      const sorted = list
         .filter((u) => !u.archived)
         .sort((a, b) => a.expiry_date.toMillis() - b.expiry_date.toMillis());
-      
-      setUsers(sortedUsers);
-    } catch (err) {
-      console.error("Error fetching users:", err);
+      setUsers(sorted);
+    } catch {
       setUsers([]);
     } finally {
       setLoadingUsers(false);
     }
   }
 
-  // Archive (soft-delete) a user
   async function archiveUser(docId: string) {
     if (!confirm("Remove this user from the channel?")) return;
     try {
-      // Get the user data first
-      const userDocRef = doc(db, "users", docId);
-      const userDoc = await getDoc(userDocRef);
+      const userRef = doc(db, "users", docId);
+      const userDoc = await getDoc(userRef);
       const userData = userDoc.data();
-      
-      if (!userData) {
-        throw new Error("User data not found");
-      }
-      
-      // Try to remove from Telegram channel via bot API
-      try {
-        const response = await fetch('http://localhost:5000/api/remove-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Secret': process.env.API_SECRET || 'your-secret-key'
-          },
-          body: JSON.stringify({
-            user_id: userData.user_id.toString()
-          })
+      if (userData) {
+        try {
+          const resp = await fetch("http://localhost:5000/api/remove-user", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Secret": process.env.API_SECRET || "your-secret-key",
+            },
+            body: JSON.stringify({ user_id: userData.user_id.toString() }),
+          });
+          const result = await resp.json();
+          if (!result.success) throw new Error(result.error);
+        } catch {
+          if (!confirm("Failed to remove from Telegram. Continue?")) return;
+        }
+        await updateDoc(userRef, {
+          archived: true,
+          archivedAt: new Date().toISOString(),
         });
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error || "Failed to remove from Telegram");
-        }
-      } catch (telegramErr) {
-        console.error("Error removing user from Telegram:", telegramErr);
-        // Continue with archiving even if Telegram removal fails
-        if (!confirm("Failed to remove from Telegram. Continue with archiving?")) {
-          return;
-        }
+        fetchUsers();
       }
-      
-      // Mark as archived in database
-      await updateDoc(userDocRef, { 
-        archived: true,
-        archivedAt: new Date().toISOString() 
-      });
-      
-      // Refresh the users list
-      fetchUsers();
-    } catch (err) {
-      console.error("Error archiving user:", err);
+    } catch {
       alert("Failed to remove user. See console.");
     }
   }
 
-  // Open "generate code" modal
   function openModal() {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase();
     setGeneratedCode(code);
     setShowModal(true);
   }
 
-  // Close modal
   function closeModal() {
     setShowModal(false);
     setGeneratedCode("");
@@ -190,7 +159,6 @@ export default function Dashboard() {
     setSuccessMessage("");
   }
 
-  // Save new access code
   async function saveCode() {
     if (!expiryDate) {
       alert("Please select an expiry date.");
@@ -206,48 +174,89 @@ export default function Dashboard() {
       setSuccessMessage("✅ Code saved!");
       fetchCodes();
       setTimeout(closeModal, 2000);
-    } catch (err) {
-      console.error("Error saving code:", err);
+    } catch {
       alert("Failed to save code.");
     } finally {
       setIsSaving(false);
     }
   }
 
-  // Delete an access code
   async function deleteExpiredCode(id: string) {
     try {
       await deleteDoc(doc(db, "access_tokens", id));
       fetchCodes();
-    } catch (err) {
-      console.error("Error deleting code:", err);
+    } catch {
       alert("Failed to delete code.");
     }
   }
 
-  // Update the loading state when both data fetching operations are complete
-  useEffect(() => {
-    setLoading(loadingCodes || loadingUsers);
-  }, [loadingCodes, loadingUsers]);
-
-  // Group users by month
-  const getUsersByMonth = () => {
-    const groupedUsers: Record<string, User[]> = {};
+  // Add this function before the sendBroadcast function
+  function getUsersByMonth() {
+    const monthGroups: Record<string, User[]> = {};
     
-    users.forEach(user => {
+    users.forEach((user) => {
       const date = user.expiry_date.toDate();
       const monthYear = `${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`;
       
-      if (!groupedUsers[monthYear]) {
-        groupedUsers[monthYear] = [];
+      if (!monthGroups[monthYear]) {
+        monthGroups[monthYear] = [];
       }
       
-      groupedUsers[monthYear].push(user);
+      monthGroups[monthYear].push(user);
     });
     
-    return groupedUsers;
-  };
+    return monthGroups;
+  }
 
+  // Add this function inside the Dashboard component, before the return statement
+  async function sendBroadcast() {
+    if (!broadcastMessage.trim()) {
+      alert("Please enter a message to broadcast.");
+      return;
+    }
+    
+    setIsSending(true);
+    setBroadcastResult("");
+    
+    try {
+      console.log("Sending broadcast to:", targetGroup);
+      
+      // Fix the URL to use port 5000 instead of 5173
+      const response = await fetch('http://localhost:5000/api/broadcast-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Secret': 'your-secret-key'  // Using the default value from bot.py
+        },
+        body: JSON.stringify({
+          message: broadcastMessage,
+          target_group: targetGroup
+        })
+      });
+      
+      console.log("Response status:", response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("Response data:", result);
+      
+      if (result.success) {
+        setBroadcastResult(`✅ Message sent successfully to ${result.sent_count} users!`);
+        setBroadcastMessage("");
+      } else {
+        setBroadcastResult(`❌ Error: ${result.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Error sending broadcast:", err);
+      setBroadcastResult(`❌ Failed to send broadcast: ${err.message}. Make sure the bot is running.`);
+    } finally {
+      setIsSending(false);
+    }
+  }
+  
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
@@ -277,7 +286,9 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h1 className="mt-4"><strong>Access Codes {codes.length}</strong></h1>
+          <h1 className="mt-4">
+            <strong>Access Codes {codes.length}</strong>
+          </h1>
           <div className="table-container">
             {loadingCodes ? (
               <p>Loading codes...</p>
@@ -330,58 +341,61 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h1 className="mt-4"><strong>Active Users {users.length}</strong></h1>
+          <h1 className="mt-4">
+            <strong>Active Users {users.length}</strong>
+          </h1>
           <div className="table-container">
             {loadingUsers ? (
               <p>Loading users...</p>
             ) : (
               <>
-                {/* Option to toggle between list view and grouped view */}
                 <div className="view-toggle">
-                  <button 
+                  <button
                     className="toggle-btn"
                     onClick={() => setGroupByMonth(!groupByMonth)}
                   >
                     {groupByMonth ? "Show List View" : "Group by Month"}
                   </button>
                 </div>
-                
+
                 {groupByMonth ? (
-                  // Grouped by month view
-                  Object.entries(getUsersByMonth()).map(([monthYear, monthUsers]) => (
-                    <div key={monthYear} className="month-group">
-                      <h3>{monthYear} ({monthUsers.length})</h3>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Username</th>
-                            <th>User ID</th>
-                            <th>Expiry Date</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {monthUsers.map((u) => (
-                            <tr key={u.id}>
-                              <td>{u.username}</td>
-                              <td>{u.user_id}</td>
-                              <td>{formatDate(u.expiry_date.toDate())}</td>
-                              <td>
-                                <button
-                                  className="delete-btn"
-                                  onClick={() => archiveUser(u.id)}
-                                >
-                                  Remove
-                                </button>
-                              </td>
+                  Object.entries(getUsersByMonth()).map(
+                    ([monthYear, monthUsers]) => (
+                      <div key={monthYear} className="month-group">
+                        <h3>
+                          {monthYear} ({monthUsers.length})
+                        </h3>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Username</th>
+                              <th>User ID</th>
+                              <th>Expiry Date</th>
+                              <th>Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))
+                          </thead>
+                          <tbody>
+                            {monthUsers.map((u) => (
+                              <tr key={u.id}>
+                                <td>{u.username}</td>
+                                <td>{u.user_id}</td>
+                                <td>{formatDate(u.expiry_date.toDate())}</td>
+                                <td>
+                                  <button
+                                    className="delete-btn"
+                                    onClick={() => archiveUser(u.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )
                 ) : (
-                  // Regular list view
                   <table>
                     <thead>
                       <tr>
@@ -422,6 +436,55 @@ export default function Dashboard() {
             )}
           </div>
         </section>
+
+        <section>
+          <h1 className="mt-4">
+            <strong>Broadcast Message</strong>
+          </h1>
+          <div className="broadcast-container">
+            <div className="form-group">
+              <label>Target Users:</label>
+              <select
+                value={targetGroup}
+                onChange={(e) => setTargetGroup(e.target.value)}
+                className="select-input"
+              >
+                <option value="active">Active Users</option>
+                <option value="archived">Archived Users</option>
+                <option value="all">All Users</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Message:</label>
+              <textarea
+                value={broadcastMessage}
+                onChange={(e) => setBroadcastMessage(e.target.value)}
+                placeholder="Enter your message here..."
+                rows={5}
+                className="textarea-input"
+              />
+            </div>
+
+            <button
+              onClick={sendBroadcast}
+              disabled={isSending || !broadcastMessage.trim()}
+              className="broadcast-btn"
+            >
+              {isSending ? "Sending..." : "Send Broadcast"}
+            </button>
+
+            {broadcastResult && (
+              <div
+                className={`broadcast-result ${
+                  broadcastResult.includes("✅") ? "success" : "error"
+                }`}
+              >
+                {broadcastResult}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
       {showModal && (
@@ -432,9 +495,7 @@ export default function Dashboard() {
               type="date"
               onChange={(e) => setExpiryDate(e.target.value)}
             />
-            {successMessage && (
-              <p className="success">{successMessage}</p>
-            )}
+            {successMessage && <p className="success">{successMessage}</p>}
             <div className="modal-buttons">
               <button onClick={saveCode} disabled={isSaving}>
                 {isSaving ? "Saving…" : "Save"}

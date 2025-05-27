@@ -299,4 +299,80 @@
 .toggle-btn:hover {
   background-color: #2d3748;
 }
+
+/* Broadcast section styles */
+.broadcast-container {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.select-input {
+  width: 100%;
+  max-width: 300px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.textarea-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.broadcast-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.broadcast-btn:hover {
+  background-color: #0069d9;
+}
+
+.broadcast-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.broadcast-result {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.broadcast-result.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.broadcast-result.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
   
