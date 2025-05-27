@@ -1,123 +1,94 @@
-"use client";
-import { useEffect, useState } from "react";
-import { useNavigate, Link } from "@remix-run/react";
-import { auth, db } from "~/utils/firebase";
-import { collection, getDocs, doc, Timestamp, query, where, deleteDoc } from "firebase/firestore";
-import "~/styles/dashboard.css"; // Import CSS
-
-interface User {
-  id: string;
-  user_id: string;
-  username: string;
-  expiry_date: Timestamp;
-  archived: boolean;
-}
+import { useState, useEffect } from "react";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "~/utils/firebase";
+import { Link } from "@remix-run/react";
+import "~/styles/dashboard.css";
 
 export default function ArchivedUsers() {
-  const [user, setUser] = useState(auth.currentUser);
-  const navigate = useNavigate();
-  const [archivedUsers, setArchivedUsers] = useState<User[]>([]);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Add a custom date formatter function
-  const formatDate = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-  
   useEffect(() => {
-    auth.onAuthStateChanged((user) => {
-      if (!user) navigate("/login");
-      setUser(user);
-    });
     fetchArchivedUsers();
-  }, [navigate]);
+  }, []);
 
-  // Fetch archived users from Firestore
   async function fetchArchivedUsers() {
-    const q = query(collection(db, "users"), where("archived", "==", true));
-    const querySnapshot = await getDocs(q);
-    const usersList = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      user_id: doc.data().user_id,
-      username: doc.data().username || "Unknown",
-      expiry_date: doc.data().expiry_date,
-      archived: doc.data().archived,
-    }));
-    setArchivedUsers(usersList);
-  }
-
-  // Permanently delete a user
-  async function deleteUser(userId: string) {
-    if (confirm("Are you sure you want to permanently delete this user?")) {
-      try {
-        await deleteDoc(doc(db, "users", userId));
-        // Refresh the users list
-        fetchArchivedUsers();
-      } catch (error) {
-        console.error("Error deleting user:", error);
-        alert("Failed to delete user. Please try again.");
-      }
+    setLoading(true);
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("archived", "==", true)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const users = [];
+      
+      querySnapshot.forEach((doc) => {
+        users.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      setArchivedUsers(users);
+    } catch (error) {
+      console.error("Error fetching archived users:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
-   
-      <div className="sidebar">
+      <aside className="sidebar">
         <h2>Admin Panel</h2>
-        <Link to="/dashboard" className="nav-link">Dashboard</Link>
-        <Link to="/all-users" className="nav-link">All Users</Link>
-        <Link to="/archived" className="nav-link">Archived Users</Link>
-        <button onClick={() => auth.signOut()}>Logout</button>
-      </div>
+        <Link to="/dashboard" className="nav-link">
+          Dashboard
+        </Link>
+        <Link to="/all-users" className="nav-link">
+          All Users
+        </Link>
+        <Link to="/archived" className="nav-link active">
+          Archived Users
+        </Link>
+      </aside>
 
-      {/* Main Content */}
-      <div className="main-content">
-        <div className="top-nav">
+      <main className="main-content">
+        <header className="top-nav">
           <h1>Archived Users</h1>
-        </div>
-
-        {/* Archived Users Table */}
-        <div className="user-table">
-          <h2>Archived Users</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>User ID</th>
-                <th>Expiry Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {archivedUsers.length > 0 ? (
-                archivedUsers.map((user) => (
+        </header>
+        
+        {loading ? (
+          <p>Loading archived users...</p>
+        ) : archivedUsers.length === 0 ? (
+          <p>No archived users found.</p>
+        ) : (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>User ID</th>
+                  <th>Expiry Date</th>
+                  <th>Archived At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archivedUsers.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.username}</td>
+                    <td>{user.username || 'N/A'}</td>
                     <td>{user.user_id}</td>
-                    <td>{formatDate(user.expiry_date.toDate())}</td>
+                    <td>{user.expiry_date?.toDate ? new Date(user.expiry_date.toDate()).toLocaleDateString() : 'Unknown'}</td>
                     <td>
-                      <button 
-                        className="delete-btn" 
-                        onClick={() => deleteUser(user.id)}
-                      >
-                        Delete Permanently
-                      </button>
+                      {user.archivedAt ? new Date(user.archivedAt).toLocaleString() : 'Unknown'}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "10px" }}>No archived users available</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

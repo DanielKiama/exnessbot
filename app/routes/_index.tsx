@@ -1,138 +1,300 @@
 import type { MetaFunction } from "@remix-run/node";
+import { Link } from "@remix-run/react";
+import "~/styles/landing.css";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
+    { title: "TeleAdmin - Automated Telegram Subscription Management" },
+    { name: "description", content: "Automate your Telegram channel subscriptions with TeleAdmin. No more manual user management." },
   ];
 };
 
 export default function Index() {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-16">
-        <header className="flex flex-col items-center gap-9">
-          <h1 className="leading text-2xl font-bold text-gray-800 dark:text-gray-100">
-            Welcome to <span className="sr-only">Remix</span>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+      {/* Navigation */}
+      <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center">
+          <img 
+            src="/logo-light.png" 
+            alt="TeleAdmin" 
+            className="h-10 w-auto block dark:hidden" 
+          />
+          <img 
+            src="/logo-dark.png" 
+            alt="TeleAdmin" 
+            className="h-10 w-auto hidden dark:block" 
+          />
+          <span className="ml-3 text-xl font-bold text-blue-600 dark:text-blue-400">TeleAdmin</span>
+        </div>
+        <div className="flex items-center space-x-4">
+          <Link 
+            to="/login" 
+            className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+          >
+            Login
+          </Link>
+          <Link 
+            to="/dashboard" 
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Dashboard
+          </Link>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="container mx-auto px-6 py-16 md:py-24 flex flex-col md:flex-row items-center">
+        <div className="md:w-1/2 mb-10 md:mb-0">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 dark:text-white mb-6">
+            Automate Your Telegram Channel Management
           </h1>
-          <div className="h-[144px] w-[434px]">
-            <img
-              src="/logo-light.png"
-              alt="Remix"
-              className="block w-full dark:hidden"
-            />
-            <img
-              src="/logo-dark.png"
-              alt="Remix"
-              className="hidden w-full dark:block"
-            />
-          </div>
-        </header>
-        <nav className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-gray-200 p-6 dark:border-gray-700">
-          <p className="leading-6 text-gray-700 dark:text-gray-200">
-            What&apos;s next?
+          <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
+            Stop manually adding and removing subscribers. Let our bot handle subscriptions, payments, and user communication automatically.
           </p>
-          <ul>
-            {resources.map(({ href, text, icon }) => (
-              <li key={href}>
-                <a
-                  className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {icon}
-                  {text}
-                </a>
-              </li>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link 
+              to="/dashboard" 
+              className="px-8 py-3 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Get Started
+            </Link>
+            <a 
+              href="#features" 
+              className="px-8 py-3 border border-blue-600 text-blue-600 dark:text-blue-400 text-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors font-medium"
+            >
+              Learn More
+            </a>
+          </div>
+        </div>
+        <div className="md:w-1/2 flex justify-center">
+          <div className="relative w-full max-w-lg">
+            <div className="absolute top-0 -left-4 w-72 h-72 bg-blue-300 dark:bg-blue-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob"></div>
+            <div className="absolute top-0 -right-4 w-72 h-72 bg-indigo-300 dark:bg-indigo-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 dark:bg-pink-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+            <div className="relative">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">T</div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">TeleAdmin Bot</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Online</p>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Now</div>
+                </div>
+                <div className="space-y-3">
+                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">Welcome to Premium Channel! Your subscription is active.</p>
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">Your subscription will expire in 30 days.</p>
+                  </div>
+                  <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-lg max-w-[80%] ml-auto">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">How can I renew my subscription?</p>
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">You can renew by using this code: RENEW2023</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="container mx-auto px-6 py-16 md:py-24">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">Why You Need TeleAdmin</h2>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Our system automates the entire subscription process for your Telegram channels, saving you time and reducing errors.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {features.map((feature, index) => (
+            <div key={index} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6">
+                {feature.icon}
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">{feature.title}</h3>
+              <p className="text-gray-600 dark:text-gray-300">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="bg-gray-50 dark:bg-gray-900/50 py-16 md:py-24">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">How It Works</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+              Our platform makes subscription management simple and efficient.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {steps.map((step, index) => (
+              <div key={index} className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold mb-6">
+                  {index + 1}
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">{step.title}</h3>
+                <p className="text-gray-600 dark:text-gray-300">{step.description}</p>
+              </div>
             ))}
-          </ul>
-        </nav>
-      </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="container mx-auto px-6 py-16 md:py-24">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">What Our Users Say</h2>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Channel owners love how TeleAdmin simplifies their workflow.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {testimonials.map((testimonial, index) => (
+            <div key={index} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold">
+                  {testimonial.name.charAt(0)}
+                </div>
+                <div className="ml-4">
+                  <h4 className="text-lg font-bold text-gray-800 dark:text-white">{testimonial.name}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{testimonial.role}</p>
+                </div>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 italic">{testimonial.quote}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="bg-blue-600 dark:bg-blue-800 py-16 md:py-24">
+        <div className="container mx-auto px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Ready to Automate Your Channel Management?</h2>
+          <p className="text-xl text-blue-100 mb-10 max-w-3xl mx-auto">
+            Join thousands of channel owners who have simplified their workflow with TeleAdmin.
+          </p>
+          <Link 
+            to="/dashboard" 
+            className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium text-lg inline-block"
+          >
+            Get Started Today
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-50 dark:bg-gray-900 py-12">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center mb-6 md:mb-0">
+              <img 
+                src="/logo-light.png" 
+                alt="TeleAdmin" 
+                className="h-8 w-auto block dark:hidden" 
+              />
+              <img 
+                src="/logo-dark.png" 
+                alt="TeleAdmin" 
+                className="h-8 w-auto hidden dark:block" 
+              />
+              <span className="ml-3 text-lg font-bold text-gray-800 dark:text-white">TeleAdmin</span>
+            </div>
+            <div className="flex space-x-6">
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Terms</a>
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Privacy</a>
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Contact</a>
+            </div>
+          </div>
+          <div className="mt-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+            © {new Date().getFullYear()} TeleAdmin. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-const resources = [
+// Feature section data
+const features = [
   {
-    href: "https://remix.run/start/quickstart",
-    text: "Quick Start (5 min)",
+    title: "Automated Subscription Management",
+    description: "Our bot automatically adds users when they subscribe and removes them when their subscription expires, eliminating manual work.",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M8.51851 12.0741L7.92592 18L15.6296 9.7037L11.4815 7.33333L12.0741 2L4.37036 10.2963L8.51851 12.0741Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
   {
-    href: "https://remix.run/start/tutorial",
-    text: "Tutorial (30 min)",
+    title: "Subscription Tracking",
+    description: "Monitor all active subscriptions, expiration dates, and renewal status from a single dashboard interface.",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M4.561 12.749L3.15503 14.1549M3.00811 8.99944H1.01978M3.15503 3.84489L4.561 5.2508M8.3107 1.70923L8.3107 3.69749M13.4655 3.84489L12.0595 5.2508M18.1868 17.0974L16.635 18.6491C16.4636 18.8205 16.1858 18.8205 16.0144 18.6491L13.568 16.2028C13.383 16.0178 13.0784 16.0347 12.915 16.239L11.2697 18.2956C11.047 18.5739 10.6029 18.4847 10.505 18.142L7.85215 8.85711C7.75756 8.52603 8.06365 8.21994 8.39472 8.31453L17.6796 10.9673C18.0223 11.0653 18.1115 11.5094 17.8332 11.7321L15.7766 13.3773C15.5723 13.5408 15.5554 13.8454 15.7404 14.0304L18.1868 16.4767C18.3582 16.6481 18.3582 16.926 18.1868 17.0974Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ),
   },
   {
-    href: "https://remix.run/docs",
-    text: "Remix Docs",
+    title: "Bulk Messaging",
+    description: "Send announcements, updates, or promotional messages to all subscribers with just a few clicks.",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M9.99981 10.0751V9.99992M17.4688 17.4688C15.889 19.0485 11.2645 16.9853 7.13958 12.8604C3.01467 8.73546 0.951405 4.11091 2.53116 2.53116C4.11091 0.951405 8.73546 3.01467 12.8604 7.13958C16.9853 11.2645 19.0485 15.889 17.4688 17.4688ZM2.53132 17.4688C0.951566 15.8891 3.01483 11.2645 7.13974 7.13963C11.2647 3.01471 15.8892 0.951453 17.469 2.53121C19.0487 4.11096 16.9854 8.73551 12.8605 12.8604C8.73562 16.9853 4.11107 19.0486 2.53132 17.4688Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://rmx.as/discord",
-    text: "Join Discord",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 24 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M15.0686 1.25995L14.5477 1.17423L14.2913 1.63578C14.1754 1.84439 14.0545 2.08275 13.9422 2.31963C12.6461 2.16488 11.3406 2.16505 10.0445 2.32014C9.92822 2.08178 9.80478 1.84975 9.67412 1.62413L9.41449 1.17584L8.90333 1.25995C7.33547 1.51794 5.80717 1.99419 4.37748 2.66939L4.19 2.75793L4.07461 2.93019C1.23864 7.16437 0.46302 11.3053 0.838165 15.3924L0.868838 15.7266L1.13844 15.9264C2.81818 17.1714 4.68053 18.1233 6.68582 18.719L7.18892 18.8684L7.50166 18.4469C7.96179 17.8268 8.36504 17.1824 8.709 16.4944L8.71099 16.4904C10.8645 17.0471 13.128 17.0485 15.2821 16.4947C15.6261 17.1826 16.0293 17.8269 16.4892 18.4469L16.805 18.8725L17.3116 18.717C19.3056 18.105 21.1876 17.1751 22.8559 15.9238L23.1224 15.724L23.1528 15.3923C23.5873 10.6524 22.3579 6.53306 19.8947 2.90714L19.7759 2.73227L19.5833 2.64518C18.1437 1.99439 16.6386 1.51826 15.0686 1.25995ZM16.6074 10.7755L16.6074 10.7756C16.5934 11.6409 16.0212 12.1444 15.4783 12.1444C14.9297 12.1444 14.3493 11.6173 14.3493 10.7877C14.3493 9.94885 14.9378 9.41192 15.4783 9.41192C16.0471 9.41192 16.6209 9.93851 16.6074 10.7755ZM8.49373 12.1444C7.94513 12.1444 7.36471 11.6173 7.36471 10.7877C7.36471 9.94885 7.95323 9.41192 8.49373 9.41192C9.06038 9.41192 9.63892 9.93712 9.6417 10.7815C9.62517 11.6239 9.05462 12.1444 8.49373 12.1444Z"
-          strokeWidth="1.5"
-        />
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
       </svg>
     ),
   },
 ];
+
+// How it works steps
+const steps = [
+  {
+    title: "Connect Your Channel",
+    description: "Link your Telegram channel to our dashboard in just a few clicks.",
+  },
+  {
+    title: "Set Up Subscription Plans",
+    description: "Create subscription tiers with different durations and pricing.",
+  },
+  {
+    title: "Share Access Codes",
+    description: "Generate and distribute access codes to your subscribers.",
+  },
+  {
+    title: "Automated Management",
+    description: "Let our system handle everything else automatically.",
+  },
+];
+
+// Testimonials
+const testimonials = [
+  {
+    name: "Alex Johnson",
+    role: "Finance Channel Owner",
+    quote: "Since using TeleAdmin, I've saved hours each week that I used to spend manually managing subscribers. The automated system is flawless.",
+  },
+  {
+    name: "Sarah Williams",
+    role: "Education Content Creator",
+    quote: "My subscriber base grew 3x after implementing TeleAdmin. The seamless subscription process made it much easier for new members to join.",
+  },
+  {
+    name: "Michael Chen",
+    role: "Tech Newsletter Publisher",
+    quote: "The bulk messaging feature has transformed how I communicate with my audience. Engagement has increased by 40% since I started using TeleAdmin.",
+  },
+];
+
+// Note: Animation styles should be added to your global CSS file
+// The following classes are used for the blob animation:
+// .animate-blob, .animation-delay-2000, .animation-delay-4000

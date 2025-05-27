@@ -12,7 +12,9 @@ import {
   doc,
   Timestamp,
   updateDoc,
+  getDoc,
 } from "firebase/firestore";
+import { removeAndArchiveUser } from "~/utils/telegram";
 import "~/styles/dashboard.css";
 
 interface AccessCode {
@@ -124,7 +126,48 @@ export default function Dashboard() {
   async function archiveUser(docId: string) {
     if (!confirm("Remove this user from the channel?")) return;
     try {
-      await updateDoc(doc(db, "users", docId), { archived: true });
+      // Get the user data first
+      const userDocRef = doc(db, "users", docId);
+      const userDoc = await getDoc(userDocRef);
+      const userData = userDoc.data();
+      
+      if (!userData) {
+        throw new Error("User data not found");
+      }
+      
+      // Try to remove from Telegram channel via bot API
+      try {
+        const response = await fetch('http://localhost:5000/api/remove-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Secret': process.env.API_SECRET || 'your-secret-key'
+          },
+          body: JSON.stringify({
+            user_id: userData.user_id.toString()
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || "Failed to remove from Telegram");
+        }
+      } catch (telegramErr) {
+        console.error("Error removing user from Telegram:", telegramErr);
+        // Continue with archiving even if Telegram removal fails
+        if (!confirm("Failed to remove from Telegram. Continue with archiving?")) {
+          return;
+        }
+      }
+      
+      // Mark as archived in database
+      await updateDoc(userDocRef, { 
+        archived: true,
+        archivedAt: new Date().toISOString() 
+      });
+      
+      // Refresh the users list
       fetchUsers();
     } catch (err) {
       console.error("Error archiving user:", err);

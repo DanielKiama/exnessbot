@@ -47,3 +47,28 @@ export async function banChatMember(userId: string) {
     throw error;
   }
 }
+
+// Remove user from channel and archive them
+export async function removeAndArchiveUser(userId: string) {
+  try {
+    const response = await axios.post(`${TELEGRAM_API_URL}${BOT_TOKEN}/banChatMember`, {
+      chat_id: CHAT_ID,
+      user_id: userId,
+      revoke_messages: false
+    });
+    
+    // Unban immediately after banning (this removes them without allowing them to rejoin)
+    if (response.data.ok) {
+      await axios.post(`${TELEGRAM_API_URL}${BOT_TOKEN}/unbanChatMember`, {
+        chat_id: CHAT_ID,
+        user_id: userId,
+        only_if_banned: true
+      });
+    }
+    
+    return response.data.ok;
+  } catch (error) {
+    console.error('Error removing user from channel:', error);
+    throw error;
+  }
+}
