@@ -190,6 +190,10 @@ export default function Dashboard() {
     }
   }
 
+  // Add these new state variables after the existing broadcast state variables
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+
   // Add this function before the sendBroadcast function
   function getUsersByMonth() {
     const monthGroups: Record<string, User[]> = {};
@@ -203,6 +207,13 @@ export default function Dashboard() {
       }
       
       monthGroups[monthYear].push(user);
+    });
+    
+    // Sort users by day within each month
+    Object.keys(monthGroups).forEach(month => {
+      monthGroups[month].sort((a, b) => {
+        return a.expiry_date.toDate().getDate() - b.expiry_date.toDate().getDate();
+      });
     });
     
     return monthGroups;
@@ -219,7 +230,7 @@ export default function Dashboard() {
     setBroadcastResult("");
     
     try {
-      console.log("Sending broadcast to:", targetGroup);
+      console.log("Sending broadcast to:", targetGroup === "specific" ? "specific users" : targetGroup);
       
       // Fix the URL to use port 5000 instead of 5173
       const response = await fetch('http://localhost:5000/api/broadcast-message', {
@@ -230,8 +241,102 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           message: broadcastMessage,
-          target_group: targetGroup
+          target_group: targetGroup,
+          user_ids: targetGroup === "specific" ? selectedUsers : []
         })
+      });
+      
+      console.log("Response status:", response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("Response data:", result);
+      
+      if (result.success) {
+        setBroadcastResult(`✅ Message sent successfully to ${result.sent_count} users!`);
+        setBroadcastMessage("");
+        if (targetGroup === "specific") {
+          setSelectedUsers([]);
+        }
+      } else {
+        setBroadcastResult(`❌ Error: ${result.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Error sending broadcast:", err);
+      setBroadcastResult(`❌ Failed to send broadcast: ${err.message}. Make sure the bot is running.`);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  // Add this function inside the Dashboard component, before the return statement
+  // Add this function to handle user selection
+  function toggleUserSelection(userId: string) {
+    setSelectedUsers(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  }
+
+  // Add this function to handle month selection
+  function selectAllInMonth(month: string, select: boolean) {
+    const monthUsers = getUsersByMonth()[month] || [];
+    
+    if (select) {
+      // Add all users from this month that aren't already selected
+      const userIds = monthUsers.map(u => u.id);
+      setSelectedUsers(prev => {
+        const newSelection = [...prev];
+        userIds.forEach(id => {
+          if (!newSelection.includes(id)) {
+            newSelection.push(id);
+          }
+        });
+        return newSelection;
+      });
+    } else {
+      // Remove all users from this month
+      const userIds = monthUsers.map(u => u.id);
+      setSelectedUsers(prev => prev.filter(id => !userIds.includes(id)));
+    }
+  }
+
+  // Modify the sendBroadcast function to handle specific users
+  async function sendBroadcast() {
+    if (!broadcastMessage.trim()) {
+      alert("Please enter a message to broadcast.");
+      return;
+    }
+    
+    setIsSending(true);
+    setBroadcastResult("");
+    
+    try {
+      // Add detailed logging
+      console.log("Selected users:", selectedUsers);
+      console.log("Target group:", targetGroup);
+      
+      const requestBody = {
+        message: broadcastMessage,
+        target_group: targetGroup,
+        user_ids: targetGroup === "specific" ? selectedUsers : []
+      };
+      
+      console.log("Sending request with body:", requestBody);
+      
+      const response = await fetch('http://localhost:5000/api/broadcast-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Secret': 'your-secret-key'  // Using the default value from bot.py
+        },
+        body: JSON.stringify(requestBody)
       });
       
       console.log("Response status:", response.status);
@@ -446,14 +551,72 @@ export default function Dashboard() {
               <label>Target Users:</label>
               <select
                 value={targetGroup}
-                onChange={(e) => setTargetGroup(e.target.value)}
+                onChange={(e) => {
+                  setTargetGroup(e.target.value);
+                  if (e.target.value !== "specific") {
+                    setSelectedUsers([]);
+                  }
+                }}
                 className="select-input"
               >
-                <option value="active">Active Users</option>
-                <option value="archived">Archived Users</option>
+                <option value="active">All Active Users</option>
+                <option value="archived">All Archived Users</option>
                 <option value="all">All Users</option>
+                <option value="specific">Specific Users</option>
               </select>
             </div>
+
+            {targetGroup === "specific" && (
+              <div className="user-selection-container">
+                <h3>Select Users by Expiry Month</h3>
+                {Object.entries(getUsersByMonth()).map(([monthYear, monthUsers]) => (
+                  <div key={monthYear} className="month-group">
+                    <div className="month-header">
+                      <h4>
+                        {monthYear} ({monthUsers.length})
+                      </h4>
+                      <label className="select-all-label">
+                        <input
+                          type="checkbox"
+                          checked={monthUsers.every(u => selectedUsers.includes(u.id))}
+                          onChange={(e) => selectAllInMonth(monthYear, e.target.checked)}
+                        />
+                        Select All
+                      </label>
+                    </div>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Select</th>
+                          <th>Username</th>
+                          <th>User ID</th>
+                          <th>Expiry Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthUsers.map((u) => (
+                          <tr key={u.id}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={selectedUsers.includes(u.id)}
+                                onChange={() => toggleUserSelection(u.id)}
+                              />
+                            </td>
+                            <td>{u.username}</td>
+                            <td>{u.user_id}</td>
+                            <td>{formatDate(u.expiry_date.toDate())}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+                <div className="selection-summary">
+                  Selected {selectedUsers.length} users
+                </div>
+              </div>
+            )}
 
             <div className="form-group">
               <label>Message:</label>
@@ -468,7 +631,7 @@ export default function Dashboard() {
 
             <button
               onClick={sendBroadcast}
-              disabled={isSending || !broadcastMessage.trim()}
+              disabled={isSending || !broadcastMessage.trim() || (targetGroup === "specific" && selectedUsers.length === 0)}
               className="broadcast-btn"
             >
               {isSending ? "Sending..." : "Send Broadcast"}
