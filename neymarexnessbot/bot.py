@@ -208,6 +208,8 @@ async def check_access(update: Update, context: CallbackContext):
             "username":     username,
             "expiry_date":  expiry,
             "invite_link":  invite.invite_link,
+            "access_code":  token,
+            "archived":     False,
         })
 
         await update.message.reply_text(
