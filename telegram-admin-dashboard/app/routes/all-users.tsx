@@ -100,6 +100,7 @@ export default function AllUsers() {
         <Link to="/dashboard" className="nav-link">Dashboard</Link>
         <Link to="/all-users" className="nav-link">All Users</Link>
         <Link to="/archived" className="nav-link">Archived Users</Link>
+        <Link to="/telegram-links" className="nav-link active">Telegram Links</Link>
         <button onClick={() => auth.signOut()}>Logout</button>
       </div>
 

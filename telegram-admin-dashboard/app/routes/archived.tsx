@@ -40,18 +40,14 @@ export default function ArchivedUsers() {
 
   return (
     <div className="dashboard-container">
-      <aside className="sidebar">
+     <div className="sidebar">
         <h2>Admin Panel</h2>
-        <Link to="/dashboard" className="nav-link">
-          Dashboard
-        </Link>
-        <Link to="/all-users" className="nav-link">
-          All Users
-        </Link>
-        <Link to="/archived" className="nav-link active">
-          Archived Users
-        </Link>
-      </aside>
+        <Link to="/dashboard" className="nav-link">Dashboard</Link>
+        <Link to="/all-users" className="nav-link">All Users</Link>
+        <Link to="/archived" className="nav-link">Archived Users</Link>
+        <Link to="/telegram-links" className="nav-link active">Telegram Links</Link>
+        <button onClick={() => auth.signOut()}>Logout</button>
+      </div>
 
       <main className="main-content">
         <header className="top-nav">
