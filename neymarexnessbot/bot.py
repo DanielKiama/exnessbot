@@ -227,37 +227,104 @@ async def check_access(update: Update, context: CallbackContext):
             "❌ Could not create invite link. Make sure the bot is an admin with 'Invite Users' permission."
         )
 
+async def remove_archived_users(context: CallbackContext):
+    """Runs hourly: removes any archived users who are still in the channel."""
+    logging.info("Starting archived users cleanup check")
+    
+    # Get all archived users
+    users_ref = db.collection("users")
+    query = users_ref.where("archived", "==", True)
+    
+    removed_count = 0
+    error_count = 0
+    
+    for user_doc in query.stream():
+        data = user_doc.to_dict()
+        uid = data.get("user_id")
+        username = data.get("username", "Unknown")
+        
+        try:
+            # Check if user is still in channel
+            try:
+                member = await context.bot.get_chat_member(CHANNEL_ID, uid)
+                if member.status not in ["left", "kicked"]:
+                    # User is still in channel, remove them
+                    await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
+                    await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
+                    removed_count += 1
+                    logging.info(f"Removed archived user {uid} ({username}) who was still in channel")
+            except Exception as e:
+                if "user not found" in str(e).lower():
+                    # User is already not in the channel, which is good
+                    pass
+                else:
+                    raise e
+                    
+        except Exception as e:
+            error_count += 1
+            logging.exception(f"Error checking/removing archived user {uid} ({username}): {e}")
+    
+    logging.info(f"Archived users cleanup completed: {removed_count} users removed, {error_count} errors")
+
 async def remove_expired_users(context: CallbackContext):
-    """Runs hourly: moves expired users into `expired_users` and removes them from the channel."""
+    """Runs hourly: removes expired users from the channel and archives them."""
     now = datetime.now(timezone.utc)
-    for user_doc in db.collection("users").stream():
-        data   = user_doc.to_dict()
+    logging.info(f"Starting expired users check at {now}")
+    
+    # Only get non-archived users
+    users_ref = db.collection("users")
+    query = users_ref.where("archived", "==", False)
+    
+    removed_count = 0
+    error_count = 0
+    
+    for user_doc in query.stream():
+        data = user_doc.to_dict()
         expiry = data.get("expiry_date")
-        uid    = data.get("user_id")
+        uid = data.get("user_id")
+        username = data.get("username", "Unknown")
+
+        if not expiry:
+            logging.warning(f"User {uid} ({username}) has no expiry date")
+            continue
 
         if hasattr(expiry, "timestamp"):
             expiry = datetime.fromtimestamp(expiry.timestamp(), tz=timezone.utc)
 
         if now > expiry:
             try:
-                # Notify
+                # Notify user
                 await context.bot.send_message(
                     chat_id=uid,
                     text="⚠️ Your access has expired and you've been removed. Contact support to renew."
                 )
-                # Ban & unban to fully remove
+                
+                # Ban & unban to remove from channel
                 await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
                 await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
 
-                # Mark as archived in the users collection instead of moving to expired_users
+                # Mark as archived
                 db.collection("users").document(str(uid)).update({
                     "archived": True,
-                    "archivedAt": now
+                    "archivedAt": now,
+                    "archiveReason": "expired"
                 })
 
-                logging.info(f"Archived & removed expired user {uid}")
-            except Exception:
-                logging.exception(f"Failed to remove expired user {uid}")
+                removed_count += 1
+                logging.info(f"Removed expired user {uid} ({username}), expired at {expiry}")
+                
+            except Exception as e:
+                error_count += 1
+                logging.exception(f"Failed to remove expired user {uid} ({username}): {str(e)}")
+                
+                # Retry ban/unban if it failed
+                try:
+                    await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
+                    await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
+                except Exception as e:
+                    logging.error(f"Retry failed for user {uid}: {str(e)}")
+
+    logging.info(f"Expired users check completed: {removed_count} users removed, {error_count} errors")
 
 async def allexpiredusers(update: Update, context: CallbackContext):
     """Lists everyone in `expired_users`."""
@@ -341,174 +408,133 @@ async def get_chat_id(update: Update, context: CallbackContext):
     """Returns the chat ID of the current chat."""
     await update.message.reply_text(f"Chat ID: {update.effective_chat.id}")
 
-async def send_trading_signal(update: Update, context: CallbackContext):
+async def debug(update: Update, context: CallbackContext):
+    """Debug command to show user information."""
     if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
         return await update.message.reply_text("❌ You're not authorized.")
-    if not context.args:
-        return await update.message.reply_text("❌ Usage: /signal <your message>")
-    sig = " ".join(context.args)
-    formatted = (
-        "🚨 *PREMIUM SIGNAL* 🚨\n\n"
-        f"{sig}\n\n"
-        f"⏰ {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
-    )
-    for u in db.collection("users").stream():
-        uid = u.to_dict().get("user_id")
-        try:
-            await context.bot.send_message(chat_id=uid, text=formatted, parse_mode="Markdown")
-            pytime.sleep(0.1)
-        except:
-            pass
-    await update.message.reply_text("✅ Signal broadcast complete.")
-
-async def debug(update: Update, context: CallbackContext):
-    me = await context.bot.get_me()
-    try:
-        m = await context.bot.get_chat_member(CHANNEL_ID, me.id)
-        status = m.status
-    except Exception as e:
-        status = f"{e.__class__.__name__}: {e}"
         
-    # Try to get chat info directly
-    try:
-        chat_info = await context.bot.get_chat(CHANNEL_ID)
-        chat_details = f"Found chat: {chat_info.title} (type: {chat_info.type})"
-    except Exception as e:
-        chat_details = f"Error getting chat: {e.__class__.__name__}: {e}"
+    user_id = str(update.effective_user.id)
+    user_doc = db.collection("users").document(user_id).get()
     
-    # Try with string version of ID
-    try:
-        chat_info_str = await context.bot.get_chat(str(CHANNEL_ID))
-        chat_details_str = f"Found chat with string ID: {chat_info_str.title}"
-    except Exception as e:
-        chat_details_str = f"Error with string ID: {e.__class__.__name__}: {e}"
-    
-    # Try to get chat administrators
-    try:
-        admins = await context.bot.get_chat_administrators(CHANNEL_ID)
-        admin_names = [f"{a.user.first_name} ({a.user.id})" for a in admins]
-        admin_details = f"Found {len(admin_names)} admins: {', '.join(admin_names)}"
-    except Exception as e:
-        admin_details = f"Error getting admins: {e.__class__.__name__}: {e}"
-    
-    await update.message.reply_text(
-        f"BotID: {me.id}\n"
-        f"ChanID: {CHANNEL_ID}\n"
-        f"Status: {status}\n"
-        f"Chat details: {chat_details}\n"
-        f"String ID test: {chat_details_str}\n"
-        f"Admin details: {admin_details}"
-    )
-
-async def delete_user(update: Update, context: CallbackContext) -> None:
-    """Delete a user from the channel (admin only)."""
-    # Check if the user is an admin
-    if update.effective_user.id != int(ADMIN_ID):
-        await update.message.reply_text("⛔️ This command is only available to admins.")
+    if not user_doc.exists:
+        await update.message.reply_text("❌ No user record found.")
         return
-    
-    # Check if a user ID was provided
-    if not context.args or len(context.args) != 1:
-        await update.message.reply_text("⚠️ Usage: /deleteuser <user_id>")
-        return
-    
-    try:
-        user_id = int(context.args[0])
         
-        # Try to remove the user
-        result = await remove_user(user_id, context)
+    data = user_doc.to_dict()
+    expiry = data.get("expiry_date")
+    if hasattr(expiry, "timestamp"):
+        expiry = datetime.fromtimestamp(expiry.timestamp(), tz=timezone.utc)
+        expiry_str = expiry.strftime("%Y-%m-%d %H:%M UTC")  # Format with time
         
-        if result:
-            await update.message.reply_text(f"✅ User {user_id} has been removed and archived.")
-        else:
-            await update.message.reply_text(f"❌ Failed to remove user {user_id}.")
-            
-    except ValueError:
-        await update.message.reply_text("⚠️ Invalid user ID. Please provide a numeric ID.")
+    info = [
+        f"🆔 User ID: {data.get('user_id')}",
+        f"👤 Username: {data.get('username')}",
+        f"⏰ Expiry: {expiry_str}",  # Use formatted string with time
+        f"🔗 Invite Link: {data.get('invite_link')}",
+        f"🎫 Access Code: {data.get('access_code')}",
+        f"📊 Archived: {data.get('archived', False)}"
+    ]
+    
+    await update.message.reply_text("\n".join(info))
 
-async def remove_user(user_id: int, context):
-    """Removes a user from the channel and archives them."""
-    try:
-        # Notify the user
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="⚠️ Your access has been revoked by an administrator."
-            )
-        except Exception as e:
-            logging.warning(f"Could not notify user {user_id}: {e}")
-        
-        # Ban & unban to fully remove
-        await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        
-        # Get user data from Firestore
-        user_doc = db.collection("users").document(str(user_id)).get()
-        
-        if user_doc.exists:
-            # Update user document to mark as archived
-            db.collection("users").document(str(user_id)).update({
-                "archived": True,
-                "archivedAt": datetime.now(timezone.utc)
-            })
-            
-            logging.info(f"Successfully removed and archived user {user_id}")
-            return True
-        else:
-            logging.warning(f"User {user_id} not found in database")
-            return False
-            
-    except Exception as e:
-        logging.exception(f"Failed to remove user {user_id}: {e}")
-        return False
+async def cleanup_archived_command(update: Update, context: CallbackContext):
+    """Manually trigger cleanup of archived users from the channel."""
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        return await update.message.reply_text("❌ You're not authorized.")
+    
+    await update.message.reply_text("🔄 Starting archived users cleanup...")
+    await remove_archived_users(context)
+    await update.message.reply_text("✅ Archived users cleanup completed!")
 
 async def send_expiry_reminders(context: CallbackContext):
-    """Sends reminders to users who will expire in 1 day."""
+    """Sends reminders to users whose access will expire in 2 days."""
     now = datetime.now(timezone.utc)
-    one_day_from_now = now + timedelta(days=1)
+    two_days_from_now = now + timedelta(days=2)
     
-    for user_doc in db.collection("users").stream():
+    # Get non-archived users
+    users_ref = db.collection("users")
+    query = users_ref.where("archived", "==", False)
+    
+    for user_doc in query.stream():
         data = user_doc.to_dict()
         expiry = data.get("expiry_date")
         uid = data.get("user_id")
         
+        if not expiry:
+            continue
+            
         if hasattr(expiry, "timestamp"):
             expiry = datetime.fromtimestamp(expiry.timestamp(), tz=timezone.utc)
-        
-        # Check if expiry is within the next 24 hours (1 day)
-        if now < expiry <= one_day_from_now:
+            
+        # Check if expiry is within 2 days
+        if now < expiry <= two_days_from_now:
             try:
-                # Format the expiry date for the message
-                expiry_formatted = expiry.strftime('%Y-%m-%d %H:%M UTC')
-                
-                # Send reminder message
                 await context.bot.send_message(
                     chat_id=uid,
-                    text=(
-                        "⚠️ *SUBSCRIPTION EXPIRY REMINDER* ⚠️\n\n"
-                        f"Your access will expire in less than 24 hours on: {expiry_formatted}\n\n"
-                        "To continue receiving signals and maintain channel access, please contact:\n"
-                        "👉 IT SUPPORT WhatsApp: +254796806232\n\n"
-                        "Thank you for being part of our community!\n"
-                        "NeymarKim Management Team"
-                    ),
-                    parse_mode="Markdown"
+                    text=f"⚠️ Your access will expire in {(expiry - now).days} days. Please contact support to renew."
                 )
-                logging.info(f"Sent expiry reminder to user {uid}, expires on {expiry_formatted}")
-                pytime.sleep(0.1)  # Avoid rate limiting
+                logging.info(f"Sent expiry reminder to user {uid}")
             except Exception as e:
                 logging.warning(f"Failed to send expiry reminder to {uid}: {e}")
+
+async def cleanup_archived_command(update: Update, context: CallbackContext):
+    """Manually trigger cleanup of archived users from the channel."""
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        return await update.message.reply_text("❌ You're not authorized.")
+    
+    await update.message.reply_text("🔄 Starting archived users cleanup...")
+    await remove_archived_users(context)
+    await update.message.reply_text("✅ Archived users cleanup completed!")
+
+async def delete_user(update: Update, context: CallbackContext):
+    """Admin command to delete a user and remove them from the channel."""
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        return await update.message.reply_text("❌ You're not authorized.")
+    
+    if not context.args:
+        return await update.message.reply_text("❌ Usage: /deleteuser <user_id>")
+    
+    target_id = context.args[0]
+    
+    try:
+        # Remove from channel
+        await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=target_id)
+        await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=target_id)
+        
+        # Mark as archived in database
+        now = datetime.now(timezone.utc)
+        db.collection("users").document(str(target_id)).update({
+            "archived": True,
+            "archivedAt": now,
+            "archiveReason": "admin_delete"
+        })
+        
+        # Try to notify the user
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="⚠️ Your access has been revoked by an administrator."
+            )
+        except Exception as e:
+            logging.warning(f"Could not notify user {target_id}: {e}")
+        
+        await update.message.reply_text(f"✅ User {target_id} has been removed and archived.")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error removing user: {str(e)}")
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     jq = application.job_queue
+    
+    # Schedule all periodic tasks
     jq.run_repeating(remove_expired_users, interval=3600, first=10)
+    jq.run_repeating(remove_archived_users, interval=3600, first=0)  # Run immediately
     jq.run_daily(send_monday_message, time=datetime_time(8,0,tzinfo=timezone.utc), days=(0,))
     jq.run_once(send_support_reminder, when=1)
-    
-    # Add daily check for users expiring in 2 days - runs at 9:00 UTC every day
     jq.run_daily(send_expiry_reminders, time=datetime_time(9,0,tzinfo=timezone.utc))
-
+    
+    # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_access))
@@ -518,8 +544,7 @@ def main():
     application.add_handler(CommandHandler("signal", send_trading_signal))
     application.add_handler(CommandHandler("mondaymessage", lambda u,c: send_monday_message(c)))
     application.add_handler(CommandHandler("deleteuser", delete_user))
-
-    # Add this line with your other command handlers
+    application.add_handler(CommandHandler("cleanup_archived", cleanup_archived_command))  # Add new command
     application.add_handler(CommandHandler("sendreminder", lambda u,c: send_support_reminder(c)))
 
     # Start the Flask server in a separate thread
@@ -596,6 +621,8 @@ async def broadcast_message(message_text, target_group, context, specific_user_i
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     jq = application.job_queue
+    
+    # Schedule all periodic tasks
     jq.run_repeating(remove_expired_users, interval=3600, first=10)
     jq.run_daily(send_monday_message, time=datetime_time(8,0,tzinfo=timezone.utc), days=(0,))
     jq.run_once(send_support_reminder, when=1)

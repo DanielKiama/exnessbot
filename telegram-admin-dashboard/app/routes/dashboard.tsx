@@ -43,9 +43,11 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [generatedCode, setGeneratedCode] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
+  const [expiryTime, setExpiryTime] = useState("23:59"); // Add new state for time
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [groupByMonth, setGroupByMonth] = useState(true);
+  const [showAccessCodes, setShowAccessCodes] = useState(true);
 
   // Broadcast state
   const [broadcastMessage, setBroadcastMessage] = useState("");
@@ -116,33 +118,53 @@ export default function Dashboard() {
 
   async function archiveUser(docId: string) {
     if (!confirm("Remove this user from the channel?")) return;
+    
     try {
       const userRef = doc(db, "users", docId);
       const userDoc = await getDoc(userRef);
       const userData = userDoc.data();
-      if (userData) {
-        try {
-          const resp = await fetch("http://localhost:5000/api/remove-user", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-Secret": process.env.API_SECRET || "your-secret-key",
-            },
-            body: JSON.stringify({ user_id: userData.user_id.toString() }),
-          });
-          const result = await resp.json();
-          if (!result.success) throw new Error(result.error);
-        } catch {
-          if (!confirm("Failed to remove from Telegram. Continue?")) return;
-        }
-        await updateDoc(userRef, {
-          archived: true,
-          archivedAt: new Date().toISOString(),
-        });
-        fetchUsers();
+      
+      if (!userData) {
+        alert("User data not found");
+        return;
       }
-    } catch {
-      alert("Failed to remove user. See console.");
+
+      // First archive the user in the database
+      await updateDoc(userRef, {
+        archived: true,
+        archivedAt: new Date().toISOString(),
+        archiveReason: "manual_removal"
+      });
+
+      // Then try to remove from Telegram channel
+      try {
+        const resp = await fetch("http://localhost:5000/api/remove-user", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Secret": process.env.API_SECRET || "your-secret-key",
+          },
+          body: JSON.stringify({ user_id: userData.user_id.toString() }),
+        });
+
+        const result = await resp.json();
+        if (!result.success) {
+          console.error("Failed to remove from Telegram:", result.error);
+          alert("User was archived but could not be removed from the channel. The bot will try to remove them in the next cleanup cycle.");
+        } else {
+          alert("User has been archived and removed from the channel.");
+        }
+      } catch (error) {
+        console.error("Error calling remove-user API:", error);
+        alert("User was archived but could not be removed from the channel. The bot will try to remove them in the next cleanup cycle.");
+      }
+
+      // Refresh the user list
+      fetchUsers();
+      
+    } catch (error) {
+      console.error("Error in archiveUser:", error);
+      alert("Failed to archive user. Please check the console for details.");
     }
   }
 
@@ -164,11 +186,20 @@ export default function Dashboard() {
       alert("Please select an expiry date.");
       return;
     }
+    if (!expiryTime) {
+      alert("Please select an expiry time.");
+      return;
+    }
     setIsSaving(true);
     try {
+      // Combine date and time
+      const [hours, minutes] = expiryTime.split(":");
+      const expiry = new Date(expiryDate);
+      expiry.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
       await setDoc(doc(db, "access_tokens", generatedCode), {
         token: generatedCode,
-        expiry_date: Timestamp.fromDate(new Date(expiryDate)),
+        expiry_date: Timestamp.fromDate(expiry),
         used: false,
       });
       setSuccessMessage("✅ Code saved!");
@@ -386,58 +417,69 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h1 className="mt-4">
-            <strong>Access Codes {codes.length}</strong>
-          </h1>
-          <div className="table-container">
-            {loadingCodes ? (
-              <p>Loading codes...</p>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Expiry</th>
-                    <th>Status</th>
-                    <th>Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {codes.length ? (
-                    codes.map((c) => (
-                      <tr key={c.id}>
-                        <td>{c.token}</td>
-                        <td>{formatDate(c.expiry_date.toDate())}</td>
-                        <td>
-                          <span
-                            className={`status-badge ${
-                              c.used ? "status-used" : "status-active"
-                            }`}
-                          >
-                            {c.used ? "Used" : "Active"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="delete-btn"
-                            onClick={() => deleteExpiredCode(c.id)}
-                          >
-                            Delete
-                          </button>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="mt-4">
+              <strong>Access Codes {codes.length}</strong>
+            </h1>
+            <button
+              onClick={() => setShowAccessCodes(!showAccessCodes)}
+              className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
+            >
+              {showAccessCodes ? 'Hide' : 'Show'} Access Codes
+            </button>
+          </div>
+          
+          {showAccessCodes && (
+            <div className="table-container">
+              {loadingCodes ? (
+                <p>Loading codes...</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Expiry</th>
+                      <th>Status</th>
+                      <th>Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {codes.length ? (
+                      codes.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.token}</td>
+                          <td>{formatDate(c.expiry_date.toDate())}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${
+                                c.used ? "status-used" : "status-active"
+                              }`}
+                            >
+                              {c.used ? "Used" : "Active"}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="delete-btn"
+                              onClick={() => deleteExpiredCode(c.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="empty">
+                          No codes available
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="empty">
-                        No codes available
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </section>
 
         <section>
@@ -649,10 +691,22 @@ export default function Dashboard() {
         <div className="modal-overlay">
           <div className="modal-content">
             <h2>Generated Code: {generatedCode}</h2>
-            <input
-              type="date"
-              onChange={(e) => setExpiryDate(e.target.value)}
-            />
+            <div className="input-group">
+              <label>Expiry Date:</label>
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+              />
+            </div>
+            <div className="input-group">
+              <label>Expiry Time:</label>
+              <input
+                type="time"
+                value={expiryTime}
+                onChange={(e) => setExpiryTime(e.target.value)}
+              />
+            </div>
             {successMessage && <p className="success">{successMessage}</p>}
             <div className="modal-buttons">
               <button onClick={saveCode} disabled={isSaving}>
