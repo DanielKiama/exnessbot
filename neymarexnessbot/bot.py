@@ -16,6 +16,8 @@ from telegram.ext import (
     CallbackContext,
 )
 from dotenv import load_dotenv
+import random
+import string
 
 # Load environment variables
 load_dotenv()
@@ -142,11 +144,159 @@ async def start(update: Update, context: CallbackContext):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+async def admin_menu(update: Update, context: CallbackContext):
+    """Admin-only command to show management interface."""
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        return await update.message.reply_text("❌ You're not authorized.")
+    
+    keyboard = [
+        [InlineKeyboardButton("👥 View All Users", callback_data="admin_view_users")],
+        [InlineKeyboardButton("🔄 Cleanup Archived", callback_data="admin_cleanup")],
+        [InlineKeyboardButton("📢 Send Broadcast", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("🎫 Generate Code", callback_data="generate_code")]
+    ]
+    await update.message.reply_text(
+        "🔧 Admin Control Panel:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def generate_code_menu(update: Update, context: CallbackContext):
+    """Show the code generation menu with expiry options."""
+    keyboard = [
+        [InlineKeyboardButton("1 Month", callback_data="gen_code_30")],
+        [InlineKeyboardButton("3 Months", callback_data="gen_code_90")],
+        [InlineKeyboardButton("6 Months", callback_data="gen_code_180")],
+        [InlineKeyboardButton("1 Year", callback_data="gen_code_365")],
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="admin_menu")]
+    ]
+    
+    await update.callback_query.message.edit_text(
+        "📝 Select expiry period for the new code:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def generate_access_code(days: int) -> str:
+    """Generate a unique access code."""
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        # Check if code already exists
+        if not db.collection("access_tokens").document(code).get().exists:
+            return code
+
+async def create_access_token(update: Update, context: CallbackContext, days: int):
+    """Create a new access token with specified expiry."""
+    code = await generate_access_code(days)
+    expiry = datetime.now(timezone.utc) + timedelta(days=days)
+    
+    # Save to database
+    db.collection("access_tokens").document(code).set({
+        "token": code,  # Add this field for dashboard compatibility
+        "expiry_date": expiry,
+        "expiry_timestamp": int(expiry.timestamp()),
+        "created_at": datetime.now(timezone.utc),
+        "created_timestamp": int(datetime.now(timezone.utc).timestamp()),
+        "created_by": str(update.callback_query.from_user.id),
+        "used": False,
+        "active": True
+    })
+    
+    await update.callback_query.message.edit_text(
+        f"✅ New access code generated:\n\n"
+        f"*Code:* `{code}`\n"
+        f"*Expires:* {expiry.strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+        "This code can be used once before expiry.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Menu", callback_data="admin_menu")]
+        ])
+    )
+
 async def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
+
+    # Regular user buttons
     if query.data == "enter_code":
         await query.message.reply_text("🔑 Please enter your access code:")
+        return
+    
+    # Admin-only buttons
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        await query.message.reply_text("❌ You're not authorized.")
+        return
+    
+    # Admin menu options
+    if query.data == "generate_code":
+        await generate_code_menu(update, context)
+    elif query.data.startswith("gen_code_"):
+        days = int(query.data.split("_")[2])
+        await create_access_token(update, context, days)
+    elif query.data == "admin_view_users":
+        # Get all non-archived users
+        users_ref = db.collection("users")
+        query_ref = users_ref.where("archived", "==", False)
+        users = list(query_ref.stream())
+        
+        # Sort users by expiry date
+        sorted_users = sorted(
+            [doc.to_dict() for doc in users],
+            key=lambda x: x.get("expiry_date").timestamp() if hasattr(x.get("expiry_date"), "timestamp") else 0
+        )
+        
+        # Get page number from context or default to 0
+        page = context.user_data.get('page', 0)
+        users_per_page = 10
+        total_pages = (len(sorted_users) + users_per_page - 1) // users_per_page
+        
+        # Get users for current page
+        start_idx = page * users_per_page
+        end_idx = start_idx + users_per_page
+        current_users = sorted_users[start_idx:end_idx]
+        
+        # Create message with user list and remove buttons
+        message = f"👥 Active Users (Page {page + 1}/{total_pages}):\n\n"
+        keyboard = []
+        
+        for user in current_users:
+            expiry = user.get("expiry_date")
+            if hasattr(expiry, "timestamp"):
+                expiry = datetime.fromtimestamp(expiry.timestamp(), tz=timezone.utc)
+            uid = user.get("user_id")
+            username = user.get("username", "Unknown")
+            access_code = user.get("access_code", "N/A")
+            
+            # Format user info as requested
+            message += f"User: {username}\n"
+            message += f"Code: {access_code}\n"
+            message += f"Exp: {expiry.strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            
+            # Add remove button for this user
+            keyboard.append([
+                InlineKeyboardButton(f"❌ Remove {username}", callback_data=f"remove_user_{uid}")
+            ])
+        
+        # Add navigation buttons
+        nav_buttons = []
+        if page > 0:
+            nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data="users_prev_page"))
+        if page < total_pages - 1:
+            nav_buttons.append(InlineKeyboardButton("➡️ Next", callback_data="users_next_page"))
+        if nav_buttons:
+            keyboard.append(nav_buttons)
+        
+        # Add back button
+        keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="admin_menu")])
+        
+        await query.message.edit_text(
+            message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif query.data == "users_prev_page":
+        context.user_data['page'] = max(0, context.user_data.get('page', 0) - 1)
+        await button_handler(update, context)  # Show updated page
+    elif query.data == "users_next_page":
+        context.user_data['page'] = context.user_data.get('page', 0) + 1
+        await button_handler(update, context)  # Show updated page
 
 async def check_access(update: Update, context: CallbackContext):
     if update.message.forward_date:
@@ -199,8 +349,14 @@ async def check_access(update: Update, context: CallbackContext):
         )
         logging.info("Successfully created invite link")
 
-        # Mark token used
-        doc_ref.update({"used": True})
+        # In the check_access function, replace the "Mark token used" section with:
+        # Mark token used with user info
+        doc_ref.update({
+            "used": True,
+            "used_by_id": user_id,
+            "used_by_username": username,
+            "used_at": datetime.now(timezone.utc)
+        })
 
         # Save user record
         db.collection("users").document(str(user_id)).set({
@@ -542,39 +698,7 @@ async def update_missing_archived(update: Update, context: CallbackContext):
     
     await update.message.reply_text(f"✅ Added archived=False to {updated_count} users.")
 
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-    jq = application.job_queue
-    
-    # Schedule all periodic tasks
-    jq.run_repeating(remove_expired_users, interval=3600, first=10)
-    jq.run_repeating(remove_archived_users, interval=3600, first=0)  # Run immediately
-    jq.run_daily(send_monday_message, time=datetime_time(8,0,tzinfo=timezone.utc), days=(0,))
-    jq.run_once(send_support_reminder, when=1)
-    jq.run_daily(send_expiry_reminders, time=datetime_time(9,0,tzinfo=timezone.utc))
-    
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_access))
-    application.add_handler(CommandHandler("getchatid", get_chat_id))
-    application.add_handler(CommandHandler("debug", debug))
-    application.add_handler(CommandHandler("allexpiredusers", allexpiredusers))
-    application.add_handler(CommandHandler("signal", send_trading_signal))
-    application.add_handler(CommandHandler("mondaymessage", lambda u,c: send_monday_message(c)))
-    application.add_handler(CommandHandler("deleteuser", delete_user))
-    application.add_handler(CommandHandler("cleanup_archived", cleanup_archived_command))  # Add new command
-    application.add_handler(CommandHandler("sendreminder", lambda u,c: send_support_reminder(c)))
-
-    # Start the Flask server in a separate thread
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
-
-    logging.info("🤖 Bot is starting…")
-    application.run_polling()
-
-# Add this function before the main() function
+# Move the broadcast_message function before main()
 async def broadcast_message(message_text, target_group, context, specific_user_ids=None):
     """Sends a message to specified user group (active, archived, all, or specific users)."""
     sent_count = 0
@@ -636,7 +760,7 @@ async def broadcast_message(message_text, target_group, context, specific_user_i
     
     return sent_count
 
-    
+# Keep only one main() function with all handlers
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     jq = application.job_queue
@@ -649,6 +773,7 @@ def main():
     # Add daily check for users expiring in 2 days - runs at 9:00 UTC every day
     jq.run_daily(send_expiry_reminders, time=datetime_time(9,0,tzinfo=timezone.utc))
 
+    # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_access))
@@ -658,9 +783,8 @@ def main():
     application.add_handler(CommandHandler("signal", send_trading_signal))
     application.add_handler(CommandHandler("mondaymessage", lambda u,c: send_monday_message(c)))
     application.add_handler(CommandHandler("deleteuser", delete_user))
-    application.add_handler(CommandHandler("update_missing_archived", update_missing_archived))
-
-    # Add this line with your other command handlers
+    application.add_handler(CommandHandler("neymar_admin_25", admin_menu))
+    application.add_handler(CommandHandler("cleanup_archived", cleanup_archived_command))
     application.add_handler(CommandHandler("sendreminder", lambda u,c: send_support_reminder(c)))
 
     # Start the Flask server in a separate thread
@@ -671,5 +795,6 @@ def main():
     logging.info("🤖 Bot is starting…")
     application.run_polling()
 
+# Add this at the end of the file
 if __name__ == "__main__":
     main()
