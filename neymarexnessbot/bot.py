@@ -523,6 +523,25 @@ async def delete_user(update: Update, context: CallbackContext):
     except Exception as e:
         await update.message.reply_text(f"❌ Error removing user: {str(e)}")
 
+async def update_missing_archived(update: Update, context: CallbackContext):
+    """Admin command to add archived=False to users who don't have the field."""
+    if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
+        return await update.message.reply_text("❌ You're not authorized.")
+    
+    users_ref = db.collection("users")
+    docs = users_ref.stream()
+    updated_count = 0
+    
+    for doc in docs:
+        data = doc.to_dict()
+        if 'archived' not in data:
+            doc.reference.update({
+                'archived': False
+            })
+            updated_count += 1
+    
+    await update.message.reply_text(f"✅ Added archived=False to {updated_count} users.")
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     jq = application.job_queue
@@ -639,6 +658,7 @@ def main():
     application.add_handler(CommandHandler("signal", send_trading_signal))
     application.add_handler(CommandHandler("mondaymessage", lambda u,c: send_monday_message(c)))
     application.add_handler(CommandHandler("deleteuser", delete_user))
+    application.add_handler(CommandHandler("update_missing_archived", update_missing_archived))
 
     # Add this line with your other command handlers
     application.add_handler(CommandHandler("sendreminder", lambda u,c: send_support_reminder(c)))
