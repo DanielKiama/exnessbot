@@ -448,37 +448,53 @@ async def remove_expired_users(context: CallbackContext):
             expiry = datetime.fromtimestamp(expiry.timestamp(), tz=timezone.utc)
 
         if now > expiry:
+            # Track success of each operation
+            notification_sent = False
+            removed_from_channel = False
+            database_updated = False
+            
+            # Step 1: Try to notify user (non-critical)
             try:
-                # Notify user
                 await context.bot.send_message(
                     chat_id=uid,
                     text="⚠️ Your access has expired and you've been removed. Contact support to renew."
                 )
-                
-                # Ban & unban to remove from channel
+                notification_sent = True
+                logging.info(f"Notification sent to user {uid} ({username})")
+            except Exception as e:
+                logging.warning(f"Failed to notify user {uid} ({username}): {str(e)}")
+            
+            # Step 2: Remove from channel (critical)
+            try:
                 await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
                 await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
-
-                # Mark as archived
+                removed_from_channel = True
+                logging.info(f"Removed user {uid} ({username}) from channel")
+            except Exception as e:
+                logging.error(f"Failed to remove user {uid} ({username}) from channel: {str(e)}")
+            
+            # Step 3: Update database (critical)
+            try:
                 db.collection("users").document(str(uid)).update({
                     "archived": True,
                     "archivedAt": now,
                     "archiveReason": "expired"
                 })
-
-                removed_count += 1
-                logging.info(f"Removed expired user {uid} ({username}), expired at {expiry}")
-                
+                database_updated = True
+                logging.info(f"Database updated for user {uid} ({username})")
             except Exception as e:
+                logging.error(f"Failed to update database for user {uid} ({username}): {str(e)}")
+            
+            # Determine overall success
+            if database_updated and removed_from_channel:
+                removed_count += 1
+                logging.info(f"Successfully processed expired user {uid} ({username}), expired at {expiry}")
+            elif database_updated:
+                removed_count += 1
+                logging.warning(f"User {uid} ({username}) archived in database but may still be in channel")
+            else:
                 error_count += 1
-                logging.exception(f"Failed to remove expired user {uid} ({username}): {str(e)}")
-                
-                # Retry ban/unban if it failed
-                try:
-                    await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
-                    await context.bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=uid)
-                except Exception as e:
-                    logging.error(f"Retry failed for user {uid}: {str(e)}")
+                logging.error(f"Failed to fully process expired user {uid} ({username})")
 
     logging.info(f"Expired users check completed: {removed_count} users removed, {error_count} errors")
 
