@@ -4,16 +4,16 @@ import "~/styles/landing.css";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "TeleAdmin - Automated Telegram Subscription Management" },
-    { name: "description", content: "Automate your Telegram channel subscriptions with TeleAdmin. No more manual user management." },
+    { title: "TeleAdmin - Make every subscriber using accurate audience segmentation" },
+    { name: "description", content: "Automate your Telegram channel management with accurate audience segmentation and real-time subscriber insights." },
   ];
 };
 
 export default function Index() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+      <nav className="container mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center">
           <img 
             src="/logo-light.png" 
@@ -25,176 +25,303 @@ export default function Index() {
             alt="TeleAdmin" 
             className="h-10 w-auto hidden dark:block" 
           />
-          <span className="ml-3 text-xl font-bold text-blue-600 dark:text-blue-400">TeleAdmin</span>
+          <span className="ml-3 text-xl font-bold text-gray-900">TeleAdmin</span>
+        </div>
+        <div className="hidden md:flex items-center space-x-8">
+          <a href="#features" className="text-gray-600 hover:text-gray-900">Features</a>
+          <a href="#pricing" className="text-gray-600 hover:text-gray-900">Pricing</a>
+          <a href="#about" className="text-gray-600 hover:text-gray-900">About</a>
+          <a href="#docs" className="text-gray-600 hover:text-gray-900">Documentation</a>
+          <a href="#contact" className="text-gray-600 hover:text-gray-900">Contact</a>
         </div>
         <div className="flex items-center space-x-4">
-          <Link 
-            to="/login" 
-            className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-          >
-            Login
-          </Link>
+          <Link to="/login" className="text-gray-600 hover:text-gray-900">Sign in</Link>
           <Link 
             to="/dashboard" 
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity"
           >
-            Dashboard
+            Get started
           </Link>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 py-16 md:py-24 flex flex-col md:flex-row items-center">
-        <div className="md:w-1/2 mb-10 md:mb-0">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 dark:text-white mb-6">
-            Automate Your Telegram Channel Management
+      <section className="container mx-auto px-6 py-20 text-center">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+            Make every subscriber using accurate{" "}
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              audience segmentation
+            </span>
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
-            Stop manually adding and removing subscribers. Let our bot handle subscriptions, payments, and user communication automatically.
+          <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            Automate your Telegram channel management with intelligent subscriber segmentation and real-time behavioral insights that drive engagement and subscription revenue.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Link 
               to="/dashboard" 
-              className="px-8 py-3 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-lg"
             >
-              Get Started
+              Start automating
             </Link>
-            <a 
-              href="#features" 
-              className="px-8 py-3 border border-blue-600 text-blue-600 dark:text-blue-400 text-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors font-medium"
-            >
-              Learn More
-            </a>
+            <button className="px-8 py-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+              </svg>
+              Watch demo
+            </button>
+          </div>
+          
+          {/* Telegram Integration Logos */}
+          <div className="flex items-center justify-center space-x-12 opacity-60">
+            <span className="text-lg font-semibold text-gray-400">Telegram</span>
+            <span className="text-lg font-semibold text-gray-400">Bot API</span>
+            <span className="text-lg font-semibold text-gray-400">Webhooks</span>
+            <span className="text-lg font-semibold text-gray-400">Payments</span>
+            <span className="text-lg font-semibold text-gray-400">Analytics</span>
+            <span className="text-lg font-semibold text-gray-400">Automation</span>
           </div>
         </div>
-        <div className="md:w-1/2 flex justify-center">
-          <div className="relative w-full max-w-lg">
-            <div className="absolute top-0 -left-4 w-72 h-72 bg-blue-300 dark:bg-blue-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-72 h-72 bg-indigo-300 dark:bg-indigo-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 dark:bg-pink-700 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
-            <div className="relative">
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">T</div>
-                    <div className="ml-3">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">TeleAdmin Bot</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Online</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Now</div>
-                </div>
-                <div className="space-y-3">
-                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">Welcome to Premium Channel! Your subscription is active.</p>
-                  </div>
-                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">Your subscription will expire in 30 days.</p>
-                  </div>
-                  <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-lg max-w-[80%] ml-auto">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">How can I renew my subscription?</p>
-                  </div>
-                  <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg max-w-[80%]">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">You can renew by using this code: RENEW2023</p>
-                  </div>
-                </div>
+        
+        {/* Floating Cards */}
+        <div className="relative mt-20">
+          <div className="absolute top-0 left-1/4 transform -translate-x-1/2 -translate-y-8">
+            <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100 rotate-12">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+                <span className="text-blue-600 font-bold">📊</span>
               </div>
+              <p className="text-sm font-medium text-gray-900">Subscriber Analytics</p>
+              <p className="text-xs text-gray-500">Real-time insights</p>
+            </div>
+          </div>
+          
+          <div className="absolute top-0 right-1/4 transform translate-x-1/2 -translate-y-4">
+            <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100 -rotate-12">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-3">
+                <span className="text-orange-600 font-bold">🎯</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">Smart Targeting</p>
+              <p className="text-xs text-gray-500">Precise segments</p>
+            </div>
+          </div>
+          
+          <div className="absolute bottom-0 right-1/3 transform translate-x-1/2 translate-y-8">
+            <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100 rotate-6">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-3">
+                <span className="text-yellow-600 font-bold">⚡</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">Bot Automation</p>
+              <p className="text-xs text-gray-500">Smart workflows</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="container mx-auto px-6 py-16 md:py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">Why You Need TeleAdmin</h2>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Our system automates the entire subscription process for your Telegram channels, saving you time and reducing errors.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <div key={index} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6">
-                {feature.icon}
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">{feature.title}</h3>
-              <p className="text-gray-600 dark:text-gray-300">{feature.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="bg-gray-50 dark:bg-gray-900/50 py-16 md:py-24">
+      <section className="bg-gray-50 py-24">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">How It Works</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              Our platform makes subscription management simple and efficient.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {steps.map((step, index) => (
-              <div key={index} className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold mb-6">
-                  {index + 1}
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-3">{step.title}</h3>
-                <p className="text-gray-600 dark:text-gray-300">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="container mx-auto px-6 py-16 md:py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-4">What Our Users Say</h2>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Channel owners love how TeleAdmin simplifies their workflow.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {testimonials.map((testimonial, index) => (
-            <div key={index} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold">
-                  {testimonial.name.charAt(0)}
-                </div>
-                <div className="ml-4">
-                  <h4 className="text-lg font-bold text-gray-800 dark:text-white">{testimonial.name}</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{testimonial.role}</p>
-                </div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300 italic">{testimonial.quote}</p>
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <div className="lg:w-1/2">
+              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+                Identify patterns among your most valuable subscribers with{" "}
+                <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                  real-time insights
+                </span>{" "}
+                into behaviour
+              </h2>
+              <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                Analyze subscriber behavior and engagement patterns to create targeted campaigns that convert. Our AI-powered segmentation helps you understand what drives subscription renewals and premium upgrades.
+              </p>
+              <Link 
+                to="/dashboard" 
+                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+              >
+                Try for free
+              </Link>
             </div>
-          ))}
+            <div className="lg:w-1/2">
+              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Channel Insights</h3>
+                  <span className="text-2xl font-bold text-blue-600">2,340 subs</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-blue-600 font-bold text-sm">A</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">Active Subscribers</p>
+                        <p className="text-sm text-gray-500">High engagement</p>
+                      </div>
+                    </div>
+                    <span className="text-green-600 font-semibold">+24%</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-orange-600 font-bold text-sm">P</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">Premium Members</p>
+                        <p className="text-sm text-gray-500">Revenue drivers</p>
+                      </div>
+                    </div>
+                    <span className="text-green-600 font-semibold">+18%</span>
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <div className="h-32 bg-gradient-to-r from-blue-100 to-purple-100 rounded-lg flex items-end justify-center p-4">
+                    <div className="flex items-end space-x-2">
+                      <div className="w-4 h-16 bg-blue-400 rounded-t"></div>
+                      <div className="w-4 h-20 bg-blue-500 rounded-t"></div>
+                      <div className="w-4 h-24 bg-blue-600 rounded-t"></div>
+                      <div className="w-4 h-18 bg-purple-400 rounded-t"></div>
+                      <div className="w-4 h-22 bg-purple-500 rounded-t"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-blue-600 dark:bg-blue-800 py-16 md:py-24">
+      {/* Revenue Section */}
+      <section className="py-24">
         <div className="container mx-auto px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Ready to Automate Your Channel Management?</h2>
-          <p className="text-xl text-blue-100 mb-10 max-w-3xl mx-auto">
-            Join thousands of channel owners who have simplified their workflow with TeleAdmin.
+          <h2 className="text-4xl font-bold text-gray-900 mb-6">
+            Increase revenue by{" "}
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              automating
+            </span>{" "}
+            the entire{" "}
+            <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              subscription process
+            </span>
+          </h2>
+          <p className="text-lg text-gray-600 mb-12 max-w-3xl mx-auto">
+            Streamline Telegram channel subscription management with automated workflows that handle everything from user onboarding to payment processing and renewal reminders.
           </p>
-          <Link 
-            to="/dashboard" 
-            className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium text-lg inline-block"
-          >
-            Get Started Today
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+            <Link 
+              to="/dashboard" 
+              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-lg"
+            >
+              Start automating
+            </Link>
+            <button className="px-8 py-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+              </svg>
+              Watch demo
+            </button>
+          </div>
+          
+          {/* Integration Logos */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 items-center justify-center opacity-60">
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span className="text-blue-600 font-bold">T</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <span className="text-green-600 font-bold">$</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <span className="text-purple-600 font-bold">W</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <span className="text-orange-600 font-bold">A</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <span className="text-red-600 font-bold">S</span>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <span className="text-gray-600 font-bold">B</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Dashboard Preview */}
+      <section className="bg-gray-50 py-24">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <div className="lg:w-1/2">
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+                <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                    <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                    <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900">Telegram Bot Dashboard</h3>
+                    <span className="text-sm text-gray-500 bg-green-100 px-2 py-1 rounded">Live</span>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                          <span className="text-white font-bold text-sm">👥</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Active Subscribers</p>
+                          <p className="text-sm text-gray-500">Last 24 hours</p>
+                        </div>
+                      </div>
+                      <span className="text-blue-600 font-bold text-lg">1,247</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-100">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                          <span className="text-white font-bold text-sm">💰</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Subscription Revenue</p>
+                          <p className="text-sm text-gray-500">This month</p>
+                        </div>
+                      </div>
+                      <span className="text-green-600 font-bold text-lg">$12,450</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="lg:w-1/2">
+              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+                Save time and also allows us to accurately segment the Telegram audience that we wish to target
+              </h2>
+              <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                Our intelligent Telegram bot learns from subscriber behavior to create precise audience segments, enabling you to deliver personalized content and subscription offers that drive engagement and conversions.
+              </p>
+              <Link 
+                to="/dashboard" 
+                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+              >
+                Try for free
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-50 dark:bg-gray-900 py-12">
+      <footer className="bg-white border-t border-gray-200 py-12">
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-6 md:mb-0">
@@ -208,15 +335,15 @@ export default function Index() {
                 alt="TeleAdmin" 
                 className="h-8 w-auto hidden dark:block" 
               />
-              <span className="ml-3 text-lg font-bold text-gray-800 dark:text-white">TeleAdmin</span>
+              <span className="ml-3 text-lg font-bold text-gray-900">TeleAdmin</span>
             </div>
             <div className="flex space-x-6">
-              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Terms</a>
-              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Privacy</a>
-              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Contact</a>
+              <a href="#" className="text-gray-600 hover:text-gray-900">Terms</a>
+              <a href="#" className="text-gray-600 hover:text-gray-900">Privacy</a>
+              <a href="#" className="text-gray-600 hover:text-gray-900">Contact</a>
             </div>
           </div>
-          <div className="mt-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+          <div className="mt-8 text-center text-gray-500 text-sm">
             © {new Date().getFullYear()} TeleAdmin. All rights reserved.
           </div>
         </div>

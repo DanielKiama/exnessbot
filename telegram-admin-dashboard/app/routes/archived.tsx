@@ -30,7 +30,14 @@ export default function ArchivedUsers() {
         });
       });
       
-      setArchivedUsers(users);
+      // Sort by expiry date - most recent first
+      const sortedUsers = users.sort((a, b) => {
+        const dateA = a.expiry_date?.toDate ? a.expiry_date.toDate() : new Date(0);
+        const dateB = b.expiry_date?.toDate ? b.expiry_date.toDate() : new Date(0);
+        return dateB.getTime() - dateA.getTime(); // Descending order (most recent first)
+      });
+      
+      setArchivedUsers(sortedUsers);
     } catch (error) {
       console.error("Error fetching archived users:", error);
     } finally {
@@ -65,7 +72,7 @@ export default function ArchivedUsers() {
                 <tr>
                   <th>Username</th>
                   <th>User ID</th>
-                  <th>Expiry Date</th>
+                  <th>Expiry Date ↓</th>
                   <th>Archived At</th>
                 </tr>
               </thead>
