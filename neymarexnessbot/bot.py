@@ -1,5 +1,8 @@
 import os
+import sys
 import logging
+import base64
+import json
 from datetime import datetime, timezone, timedelta, time as datetime_time
 import time as pytime
 
@@ -15,6 +18,7 @@ from telegram.ext import (
     filters,
     CallbackContext,
 )
+from telegram.error import NetworkError, RetryAfter, TimedOut
 from dotenv import load_dotenv
 import random
 import string
@@ -28,7 +32,15 @@ ADMIN_ID  = os.getenv("ADMIN_ID")  # your Telegram user ID if you use /signal
 CHANNEL_ID = -1002493716889  # Updated with correct ID from image
 
 # Initialize Firebase
-cred = credentials.Certificate("firebase-key.json")
+# Support both file-based (local) and environment variable (cloud hosting) credentials
+if os.getenv('FIREBASE_KEY_B64'):
+    # Read from environment variable (for cloud hosting)
+    firebase_key_json = json.loads(base64.b64decode(os.getenv('FIREBASE_KEY_B64')))
+    cred = credentials.Certificate(firebase_key_json)
+else:
+    # Read from file (for local development)
+    cred = credentials.Certificate("firebase-key.json")
+
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -42,6 +54,7 @@ logging.basicConfig(
 from flask import Flask, request, jsonify
 import threading
 from datetime import datetime, timezone
+import asyncio
 
 # Add this import at the top with your other imports
 from flask_cors import CORS
@@ -135,7 +148,9 @@ def api_broadcast_message():
 
 # Function to run the Flask app
 def run_flask():
-    app.run(host='0.0.0.0', port=5000)
+    # Use PORT environment variable if available (for cloud hosting)
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
 
 async def start(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("🎟 Enter Access Code", callback_data="enter_code")]]
@@ -200,16 +215,83 @@ async def create_access_token(update: Update, context: CallbackContext, days: in
         "active": True
     })
     
+    # Create inline keyboard with copy buttons (UPDATED)
+    expiry_str = expiry.strftime('%Y-%m-%d %H:%M UTC')
+    keyboard = [
+        [InlineKeyboardButton("📋 Copy Full Message", callback_data=f"copy_full_{code}_{expiry.timestamp()}")],
+        [InlineKeyboardButton(f"📝 Copy Code: {code}", callback_data=f"copy_code_{code}")],
+        [InlineKeyboardButton("🔗 Copy Bot Link", callback_data="copy_link")],
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="admin_menu")]
+    ]
+    
     await update.callback_query.message.edit_text(
+        f"Neymar's admin here\n\n"
         f"✅ New access code generated:\n\n"
-        f"*Code:* `{code}`\n"
-        f"*Expires:* {expiry.strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-        "This code can be used once before expiry.",
+        f"Code: `{code}`\n"
+        f"Expires: {expiry.strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+        f"This code can be used once before expiry.\n\n"
+        f"Please follow this steps to get your access to premium\n\n"
+        f"https://t.me/neymarexnessbot\n"
+        f"so i want you to message this bot\n"
+        f"it will ask for a code\n"
+        f"paste this code\n"
+        f"Code: `{code}`",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Menu", callback_data="admin_menu")]
-        ])
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
+# Add this function BEFORE the button_handler function (around line 226)
+async def handle_copy_buttons(update: Update, context: CallbackContext):
+    """Handle copy button callbacks"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data.startswith("copy_full_"):
+        # Extract code and timestamp from callback data
+        parts = query.data.replace("copy_full_", "").split("_")
+        code = parts[0]
+        
+        # Get expiry date from timestamp if available
+        if len(parts) > 1:
+            try:
+                timestamp = float(parts[1])
+                expiry = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                expiry_str = expiry.strftime('%Y-%m-%d %H:%M UTC')
+            except:
+                expiry_str = "[EXPIRY_DATE]"
+        else:
+            expiry_str = "[EXPIRY_DATE]"
+        
+        full_message = (
+            f"Neymar's admin here\n\n"
+            f"✅ New access code generated:\n\n"
+            f"Code: {code}\n"
+            f"Expires: {expiry_str}\n\n"
+            f"This code can be used once before expiry.\n\n"
+            f"Please follow this steps to get your access to premium\n\n"
+            f"https://t.me/neymarexnessbot\n"
+            f"so i want you to message this bot\n"
+            f"it will ask for a code\n"
+            f"paste this code\n"
+            f"Code: {code}"
+        )
+        await query.message.reply_text(
+            f"📋 **Full message copied:**\n\n```\n{full_message}\n```\n\n*Tap and hold the message above to copy*",
+            parse_mode="Markdown"
+        )
+    
+    elif query.data.startswith("copy_code_"):
+        code = query.data.replace("copy_code_", "")
+        await query.message.reply_text(
+            f"📝 **Access code:**\n\n`{code}`\n\n*Tap the code above to copy*",
+            parse_mode="Markdown"
+        )
+    
+    elif query.data == "copy_link":
+        await query.message.reply_text(
+            f"🔗 **Bot link:**\n\n`https://t.me/neymarexnessbot`\n\n*Tap the link above to copy*",
+            parse_mode="Markdown"
+        )
 
 async def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -223,6 +305,11 @@ async def button_handler(update: Update, context: CallbackContext):
     # Admin-only buttons
     if ADMIN_ID and str(update.effective_user.id) != ADMIN_ID:
         await query.message.reply_text("❌ You're not authorized.")
+        return
+    
+    # Handle copy buttons - ADD THIS SECTION
+    if query.data.startswith("copy_"):
+        await handle_copy_buttons(update, context)
         return
     
     # Admin menu options
@@ -297,6 +384,7 @@ async def button_handler(update: Update, context: CallbackContext):
     elif query.data == "users_next_page":
         context.user_data['page'] = context.user_data.get('page', 0) + 1
         await button_handler(update, context)  # Show updated page
+    # Add other missing cases here if needed
 
 async def check_access(update: Update, context: CallbackContext):
     if update.message.forward_date:
@@ -776,9 +864,21 @@ async def broadcast_message(message_text, target_group, context, specific_user_i
     
     return sent_count
 
-# Keep only one main() function with all handlers
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
+# Helper function to setup the Telegram application
+def setup_application():
+    """Create and configure the Telegram bot application."""
+    # Configure with longer timeouts for better reliability on Windows
+    from telegram.request import HTTPXRequest
+    
+    request = HTTPXRequest(
+        connection_pool_size=8,
+        read_timeout=60.0,  # Increased timeout for slow connections
+        write_timeout=60.0,
+        connect_timeout=60.0,
+        pool_timeout=60.0,
+    )
+    
+    application = Application.builder().token(BOT_TOKEN).request(request).build()
     jq = application.job_queue
     
     # Schedule all periodic tasks
@@ -802,6 +902,16 @@ def main():
     application.add_handler(CommandHandler("neymar_admin_25", admin_menu))
     application.add_handler(CommandHandler("cleanup_archived", cleanup_archived_command))
     application.add_handler(CommandHandler("sendreminder", lambda u,c: send_support_reminder(c)))
+    
+    return application
+
+# Keep only one main() function with all handlers
+def main():
+    # Set event loop policy for Windows BEFORE creating application
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    
+    application = setup_application()
 
     # Start the Flask server in a separate thread
     flask_thread = threading.Thread(target=run_flask)
@@ -809,7 +919,103 @@ def main():
     flask_thread.start()
 
     logging.info("🤖 Bot is starting…")
-    application.run_polling()
+    
+    # Retry logic for network errors
+    max_retries = 5
+    retry_delay = 5  # Start with 5 seconds
+    
+    for attempt in range(max_retries):
+        # Reset event loop state before each attempt (especially important on Windows)
+        if attempt > 0:
+            try:
+                # Close any existing event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                    if not loop.is_closed():
+                        loop.close()
+                except RuntimeError:
+                    # No event loop exists, which is fine
+                    pass
+                # Create a new event loop for the retry
+                # On Windows, use ProactorEventLoopPolicy for better compatibility
+                if sys.platform == 'win32':
+                    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+            except Exception as e:
+                logging.debug(f"Error resetting event loop: {e}")
+        
+        try:
+            application.run_polling(
+                stop_signals=None,  # Fix Windows signal handler warning
+                drop_pending_updates=True,
+                allowed_updates=None
+            )
+            break  # If successful, exit the retry loop
+        except (NetworkError, ConnectionError, OSError, TimedOut) as e:
+            error_msg = str(e)
+            if attempt < max_retries - 1:
+                logging.warning(f"Network error on attempt {attempt + 1}/{max_retries}: {error_msg}")
+                logging.info(f"Retrying in {retry_delay} seconds...")
+                # Clean up and recreate event loop before retry
+                try:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if not loop.is_closed():
+                            loop.close()
+                    except RuntimeError:
+                        pass
+                    if sys.platform == 'win32':
+                        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                except Exception as cleanup_error:
+                    logging.debug(f"Error during cleanup: {cleanup_error}")
+                pytime.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                # Recreate application for retry to ensure clean state
+                application = setup_application()
+            else:
+                logging.error(f"Failed to start bot after {max_retries} attempts: {error_msg}")
+                logging.error("This might be due to:")
+                logging.error("1. Internet connection issues")
+                logging.error("2. Firewall/antivirus blocking Telegram API")
+                logging.error("3. VPN/proxy configuration problems")
+                logging.error("4. Telegram API temporarily unavailable")
+                raise
+        except RuntimeError as e:
+            # Handle event loop errors
+            error_msg = str(e)
+            if "Event loop is closed" in error_msg or "no current event loop" in error_msg.lower() or "coroutine" in error_msg.lower():
+                if attempt < max_retries - 1:
+                    logging.warning(f"Event loop error on attempt {attempt + 1}/{max_retries}: {error_msg}")
+                    logging.info("Creating new event loop and retrying...")
+                    # Create a new event loop
+                    try:
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if not loop.is_closed():
+                                loop.close()
+                        except RuntimeError:
+                            pass
+                        if sys.platform == 'win32':
+                            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                    except Exception as cleanup_error:
+                        logging.debug(f"Error during cleanup: {cleanup_error}")
+                    pytime.sleep(retry_delay)
+                    retry_delay *= 2
+                    # Recreate application for retry
+                    application = setup_application()
+                else:
+                    logging.error(f"Failed to start bot after {max_retries} attempts due to event loop issues")
+                    raise
+            else:
+                raise
+        except Exception as e:
+            logging.error(f"Unexpected error starting bot: {e}")
+            raise
 
 # Add this at the end of the file
 if __name__ == "__main__":
