@@ -423,4 +423,84 @@
   border-radius: 4px;
   width: 100%;
 }
-  
+
+/* 🌟 User Avatar */
+.user-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #1e293b;
+  background: #e9ecef;
+  flex-shrink: 0;
+}
+
+/* 🌟 User Info Cell — avatar + name side by side */
+.user-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info-cell .user-name {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-info-cell .user-name span:first-child {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.user-info-cell .user-name .user-id-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+/* 🌟 Code Used-By cell */
+.code-used-by {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.code-used-by .used-by-name {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.code-used-by .used-by-unknown {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 🌟 Remove button — slightly different shade from delete */
+.remove-btn {
+  background: #f97316;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.remove-btn:hover {
+  background: #ea580c;
+}
+
+.remove-btn:disabled {
+  background: #fdba74;
+  cursor: not-allowed;
+}
+
+/* 🌟 Expired badge */
+.status-expired {
+  background: #94a3b8;
+  color: white;
+}

@@ -67,45 +67,136 @@ CORS(app)
 # Add a secret key for API authentication
 API_SECRET = os.getenv("API_SECRET", "your-secret-key")
 
+# Helper: remove a user from the Telegram channel and archive them in Firestore
+async def remove_user(user_id: int, bot) -> bool:
+    """Ban then immediately unban a user (removes them without permanent ban),
+    and mark their record as archived in Firestore."""
+    now = datetime.now(timezone.utc)
+    removed_from_channel = False
+    database_updated = False
+
+    # Step 1: Notify user (non-critical)
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text="⚠️ Your access has been revoked by an administrator. Contact support to renew."
+        )
+    except Exception as e:
+        logging.warning(f"Could not notify user {user_id}: {e}")
+
+    # Step 2: Remove from channel
+    try:
+        await bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        await bot.unban_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        removed_from_channel = True
+        logging.info(f"Removed user {user_id} from channel via manual removal")
+    except Exception as e:
+        logging.error(f"Failed to remove user {user_id} from channel: {e}")
+
+    # Step 3: Archive in database
+    try:
+        db.collection("users").document(str(user_id)).update({
+            "archived": True,
+            "archivedAt": now,
+            "archiveReason": "admin_manual"
+        })
+        database_updated = True
+    except Exception as e:
+        logging.error(f"Failed to archive user {user_id} in database: {e}")
+
+    return removed_from_channel or database_updated
+
+
 # Flask route for the API endpoint to remove users
 @app.route('/api/remove-user', methods=['POST'])
 def api_remove_user():
     # Check API secret for authentication
     if request.headers.get('X-API-Secret') != API_SECRET:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    
-    # Get user_id from request
+
     data = request.json
     if not data or 'user_id' not in data:
         return jsonify({'success': False, 'error': 'Missing user_id parameter'}), 400
-    
-    user_id = data['user_id']
-    
+
+    user_id = int(data['user_id'])
+
     try:
-        # Create an application instance to access the bot
-        application = Application.builder().token(BOT_TOKEN).build()
-        
-        # Use the application to create a context for the remove_user function
-        async def process_removal():
-            context = CallbackContext(application)
-            result = await remove_user(int(user_id), context)
-            return result
-        
-        # Run the async function and get the result
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(process_removal())
-        loop.close()
-        
-        if result:
-            return jsonify({'success': True})
-        else:
-            return jsonify({'success': False, 'error': 'Failed to remove user'}), 500
-    
+        import requests as req_lib
+        # Use Telegram Bot API directly via HTTP (avoids event-loop conflicts with PTB)
+        ban_url = f"https://api.telegram.org/bot{BOT_TOKEN}/banChatMember"
+        unban_url = f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember"
+
+        ban_resp = req_lib.post(ban_url, json={"chat_id": CHANNEL_ID, "user_id": user_id, "revoke_messages": False})
+        if not ban_resp.json().get("ok"):
+            logging.warning(f"Ban returned not-ok for {user_id}: {ban_resp.json()}")
+        req_lib.post(unban_url, json={"chat_id": CHANNEL_ID, "user_id": user_id, "only_if_banned": True})
+
+        # Archive in Firestore
+        now = datetime.now(timezone.utc)
+        db.collection("users").document(str(user_id)).update({
+            "archived": True,
+            "archivedAt": now,
+            "archiveReason": "admin_manual"
+        })
+
+        # Try notify user (best effort)
+        try:
+            notify_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            req_lib.post(notify_url, json={
+                "chat_id": user_id,
+                "text": "\u26a0\ufe0f Your access has been revoked by an administrator. Contact support to renew."
+            })
+        except Exception:
+            pass
+
+        return jsonify({'success': True})
     except Exception as e:
         logging.exception(f"API error removing user {user_id}: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Flask route to proxy Telegram user profile photos (keeps bot token server-side)
+@app.route('/api/user-photo/<int:user_id>', methods=['GET'])
+def api_user_photo(user_id):
+    try:
+        import requests as req_lib
+        # Get profile photos
+        photos_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
+        photos_resp = req_lib.get(photos_url, params={"user_id": user_id, "limit": 1}, timeout=5)
+        photos_data = photos_resp.json()
+
+        if not photos_data.get("ok") or photos_data["result"]["total_count"] == 0:
+            # Return a redirect to a generated avatar as fallback
+            from flask import redirect
+            return redirect(f"https://ui-avatars.com/api/?name={user_id}&background=1e293b&color=fff&size=64&bold=true")
+
+        # Get the file_id of the smallest photo
+        file_id = photos_data["result"]["photos"][0][0]["file_id"]
+
+        # Get the file path
+        file_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
+        file_resp = req_lib.get(file_url, params={"file_id": file_id}, timeout=5)
+        file_data = file_resp.json()
+
+        if not file_data.get("ok"):
+            from flask import redirect
+            return redirect(f"https://ui-avatars.com/api/?name={user_id}&background=1e293b&color=fff&size=64&bold=true")
+
+        file_path = file_data["result"]["file_path"]
+        download_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+
+        # Download and stream the photo
+        img_resp = req_lib.get(download_url, timeout=10)
+        from flask import Response
+        return Response(
+            img_resp.content,
+            mimetype=img_resp.headers.get("Content-Type", "image/jpeg")
+        )
+    except Exception as e:
+        logging.warning(f"Failed to fetch photo for user {user_id}: {e}")
+        from flask import redirect
+        return redirect(f"https://ui-avatars.com/api/?name={user_id}&background=1e293b&color=fff&size=64&bold=true")
+
 
 # Add this new API endpoint after the existing api_remove_user endpoint
 @app.route('/api/broadcast-message', methods=['POST'])
@@ -113,38 +204,38 @@ def api_broadcast_message():
     # Check API secret for authentication
     if request.headers.get('X-API-Secret') != API_SECRET:
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    
+
     # Get message and target group from request
     data = request.json
     if not data or 'message' not in data or 'target_group' not in data:
         return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
-    
+
     message = data['message']
     target_group = data['target_group']
     user_ids = data.get('user_ids', [])
-    
+
     try:
         # Create an application instance to access the bot
         application = Application.builder().token(BOT_TOKEN).build()
-        
+
         # Use the application to create a context for the broadcast function
         async def process_broadcast():
             context = CallbackContext(application)
             result = await broadcast_message(message, target_group, context, user_ids)
             return result
-        
+
         # Run the async function and get the result
-        import asyncio
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         result = loop.run_until_complete(process_broadcast())
         loop.close()
-        
+
         return jsonify({'success': True, 'sent_count': result})
-    
+
     except Exception as e:
         logging.exception(f"API error broadcasting message: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # Function to run the Flask app
 def run_flask():

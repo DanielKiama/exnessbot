@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "@remix-run/react";
 import { auth, db } from "~/utils/firebase";
-import { signOut } from "firebase/auth";
 import {
   collection,
   setDoc,
@@ -10,9 +9,8 @@ import {
   doc,
   Timestamp,
   updateDoc,
-  getDoc,
 } from "firebase/firestore";
-import { removeAndArchiveUser } from "~/utils/telegram";
+
 import "~/styles/dashboard.css";
 
 interface AccessCode {
@@ -20,6 +18,8 @@ interface AccessCode {
   token: string;
   expiry_date: Timestamp;
   used: boolean;
+  used_by_id?: number | null;
+  used_by_username?: string | null;
 }
 
 interface User {
@@ -28,6 +28,7 @@ interface User {
   username: string;
   expiry_date: Timestamp;
   archived?: boolean;
+  access_code?: string;
 }
 
 export default function Dashboard() {
@@ -85,6 +86,8 @@ export default function Dashboard() {
         token: d.data().token as string,
         expiry_date: d.data().expiry_date as Timestamp,
         used: d.data().used as boolean,
+        used_by_id: d.data().used_by_id as number | null ?? null,
+        used_by_username: d.data().used_by_username as string | null ?? null,
       }));
       setCodes(list);
     } catch {
@@ -101,9 +104,10 @@ export default function Dashboard() {
       const list = snap.docs.map((d) => ({
         id: d.id,
         user_id: d.data().user_id as number,
-        username: d.data().username as string || "Unknown",
+        username: (d.data().username as string) || "",
         expiry_date: d.data().expiry_date as Timestamp,
-        archived: d.data().archived as boolean || false,
+        archived: (d.data().archived as boolean) || false,
+        access_code: (d.data().access_code as string) || "",
       }));
       const sorted = list
         .filter((u) => !u.archived)
@@ -116,56 +120,69 @@ export default function Dashboard() {
     }
   }
 
-  async function archiveUser(docId: string) {
-    if (!confirm("Remove this user from the channel?")) return;
-    
+  // Expire a user by setting their expiry_date to 1 minute from now so the
+  // bot's next hourly check will remove them automatically from the channel.
+  async function expireUserByTelegramId(telegramId: number, docId: string) {
+    const oneMinuteFromNow = new Date(Date.now() + 60 * 1000);
+    const userRef = doc(db, "users", docId);
+    await updateDoc(userRef, {
+      expiry_date: Timestamp.fromDate(oneMinuteFromNow),
+      archiveReason: "admin_manual",
+    });
+  }
+
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+
+  async function archiveUser(docId: string, telegramId: number) {
+    if (!confirm("Remove this user from the channel? Their expiry will be set to the next minute so the bot removes them.")) return;
+
+    setRemovingUserId(docId);
     try {
-      const userRef = doc(db, "users", docId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-      
-      if (!userData) {
-        alert("User data not found");
-        return;
-      }
+      // Set expiry to next minute — bot's hourly job will pick this up and
+      // ban/unban them from the channel then mark archived.
+      await expireUserByTelegramId(telegramId, docId);
 
-      // First archive the user in the database
-      await updateDoc(userRef, {
-        archived: true,
-        archivedAt: new Date().toISOString(),
-        archiveReason: "manual_removal"
-      });
-
-      // Then try to remove from Telegram channel
+      // Also try immediate removal via the Flask API (best-effort)
       try {
         const resp = await fetch("http://localhost:5000/api/remove-user", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-API-Secret": process.env.API_SECRET || "your-secret-key",
+            "X-API-Secret": "your-secret-key",
           },
-          body: JSON.stringify({ user_id: userData.user_id.toString() }),
+          body: JSON.stringify({ user_id: telegramId.toString() }),
         });
-
         const result = await resp.json();
-        if (!result.success) {
-          console.error("Failed to remove from Telegram:", result.error);
-          alert("User was archived but could not be removed from the channel. The bot will try to remove them in the next cleanup cycle.");
+        if (result.success) {
+          console.log("Immediately removed from channel via API.");
         } else {
-          alert("User has been archived and removed from the channel.");
+          console.warn("API removal not successful, bot will handle on next cycle.", result.error);
         }
-      } catch (error) {
-        console.error("Error calling remove-user API:", error);
-        alert("User was archived but could not be removed from the channel. The bot will try to remove them in the next cleanup cycle.");
+      } catch (err) {
+        console.warn("Could not reach bot API — bot will remove on next hourly cycle.", err);
       }
 
       // Refresh the user list
-      fetchUsers();
-      
+      await fetchUsers();
+      alert("✅ User queued for removal. They will be kicked within the next minute.");
     } catch (error) {
       console.error("Error in archiveUser:", error);
-      alert("Failed to archive user. Please check the console for details.");
+      alert("❌ Failed to queue user for removal. Please check the console for details.");
+    } finally {
+      setRemovingUserId(null);
     }
+  }
+
+  // Remove a user directly from the codes table (by their Telegram ID stored on the code)
+  async function removeUserByCode(telegramId: number) {
+    // Find the Firestore doc for this user
+    const snap = await getDocs(collection(db, "users"));
+    const userDoc = snap.docs.find((d) => d.data().user_id === telegramId);
+    if (!userDoc) {
+      alert("❌ Could not find this user in the database.");
+      return;
+    }
+    await archiveUser(userDoc.id, telegramId);
   }
 
   function openModal() {
@@ -440,14 +457,15 @@ export default function Dashboard() {
                       <th>Code</th>
                       <th>Expiry</th>
                       <th>Status</th>
-                      <th>Delete</th>
+                      <th>Used By</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {codes.length ? (
                       codes.map((c) => (
                         <tr key={c.id}>
-                          <td>{c.token}</td>
+                          <td><strong>{c.token}</strong></td>
                           <td>{formatDate(c.expiry_date.toDate())}</td>
                           <td>
                             <span
@@ -459,18 +477,50 @@ export default function Dashboard() {
                             </span>
                           </td>
                           <td>
+                            {c.used && c.used_by_id ? (
+                              <div className="code-used-by">
+                                <img
+                                  className="user-avatar"
+                                  src={`http://localhost:5000/api/user-photo/${c.used_by_id}`}
+                                  alt="avatar"
+                                  onError={(e) => {
+                                    const name = encodeURIComponent(c.used_by_username || 'U');
+                                    (e.currentTarget as HTMLImageElement).src =
+                                      `https://ui-avatars.com/api/?name=${name}&background=1e293b&color=fff&size=64&bold=true`;
+                                  }}
+                                />
+                                <div className="user-name">
+                                  <span className={c.used_by_username ? "used-by-name" : "used-by-unknown"}>
+                                    {c.used_by_username ? `@${c.used_by_username}` : "Unknown user"}
+                                  </span>
+                                  <span className="user-id-label">ID: {c.used_by_id}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: "#94a3b8", fontSize: "13px" }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            {c.used && c.used_by_id && (
+                              <button
+                                className="remove-btn"
+                                onClick={() => removeUserByCode(c.used_by_id!)}
+                              >
+                                Remove User
+                              </button>
+                            )}
                             <button
                               className="delete-btn"
                               onClick={() => deleteExpiredCode(c.id)}
                             >
-                              Delete
+                              Delete Code
                             </button>
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="empty">
+                        <td colSpan={5} className="empty">
                           No codes available
                         </td>
                       </tr>
@@ -510,8 +560,8 @@ export default function Dashboard() {
                         <table>
                           <thead>
                             <tr>
-                              <th>Username</th>
-                              <th>User ID</th>
+                              <th>User</th>
+                              <th>Access Code</th>
                               <th>Expiry Date</th>
                               <th>Actions</th>
                             </tr>
@@ -519,15 +569,39 @@ export default function Dashboard() {
                           <tbody>
                             {monthUsers.map((u) => (
                               <tr key={u.id}>
-                                <td>{u.username}</td>
-                                <td>{u.user_id}</td>
+                                <td>
+                                  <div className="user-info-cell">
+                                    <img
+                                      className="user-avatar"
+                                      src={`http://localhost:5000/api/user-photo/${u.user_id}`}
+                                      alt="avatar"
+                                      onError={(e) => {
+                                        const name = encodeURIComponent(u.username || 'U');
+                                        (e.currentTarget as HTMLImageElement).src =
+                                          `https://ui-avatars.com/api/?name=${name}&background=1e293b&color=fff&size=64&bold=true`;
+                                      }}
+                                    />
+                                    <div className="user-name">
+                                      <span>
+                                        {u.username ? `@${u.username}` : "Unknown"}
+                                      </span>
+                                      <span className="user-id-label">ID: {u.user_id}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", fontSize: "12px" }}>
+                                    {u.access_code || "—"}
+                                  </code>
+                                </td>
                                 <td>{formatDate(u.expiry_date.toDate())}</td>
                                 <td>
                                   <button
-                                    className="delete-btn"
-                                    onClick={() => archiveUser(u.id)}
+                                    className="remove-btn"
+                                    disabled={removingUserId === u.id}
+                                    onClick={() => archiveUser(u.id, u.user_id)}
                                   >
-                                    Remove
+                                    {removingUserId === u.id ? "Removing…" : "Remove"}
                                   </button>
                                 </td>
                               </tr>
@@ -541,8 +615,8 @@ export default function Dashboard() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Username</th>
-                        <th>User ID</th>
+                        <th>User</th>
+                        <th>Access Code</th>
                         <th>Expiry Date</th>
                         <th>Actions</th>
                       </tr>
@@ -551,15 +625,38 @@ export default function Dashboard() {
                       {users.length ? (
                         users.map((u) => (
                           <tr key={u.id}>
-                            <td>{u.username}</td>
-                            <td>{u.user_id}</td>
+                            <td>
+                              <div className="user-info-cell">
+                                <img
+                                  className="user-avatar"
+                                  src={`http://localhost:5000/api/user-photo/${u.user_id}`}
+                                  alt="avatar"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src =
+                                      `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || "U")}&background=1e293b&color=fff&size=64&bold=true`;
+                                  }}
+                                />
+                                <div className="user-name">
+                                  <span>
+                                    {u.username ? `@${u.username}` : "Unknown"}
+                                  </span>
+                                  <span className="user-id-label">ID: {u.user_id}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", fontSize: "12px" }}>
+                                {u.access_code || "—"}
+                              </code>
+                            </td>
                             <td>{formatDate(u.expiry_date.toDate())}</td>
                             <td>
                               <button
-                                className="delete-btn"
-                                onClick={() => archiveUser(u.id)}
+                                className="remove-btn"
+                                disabled={removingUserId === u.id}
+                                onClick={() => archiveUser(u.id, u.user_id)}
                               >
-                                Remove
+                                {removingUserId === u.id ? "Removing…" : "Remove"}
                               </button>
                             </td>
                           </tr>
@@ -625,8 +722,8 @@ export default function Dashboard() {
                       <thead>
                         <tr>
                           <th>Select</th>
-                          <th>Username</th>
-                          <th>User ID</th>
+                          <th>User</th>
+                          <th>Access Code</th>
                           <th>Expiry Date</th>
                         </tr>
                       </thead>
@@ -640,8 +737,28 @@ export default function Dashboard() {
                                 onChange={() => toggleUserSelection(u.id)}
                               />
                             </td>
-                            <td>{u.username}</td>
-                            <td>{u.user_id}</td>
+                            <td>
+                              <div className="user-info-cell">
+                                <img
+                                  className="user-avatar"
+                                  src={`http://localhost:5000/api/user-photo/${u.user_id}`}
+                                  alt="avatar"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src =
+                                      `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || "U")}&background=1e293b&color=fff&size=64&bold=true`;
+                                  }}
+                                />
+                                <div className="user-name">
+                                  <span>{u.username ? `@${u.username}` : "Unknown"}</span>
+                                  <span className="user-id-label">ID: {u.user_id}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", fontSize: "12px" }}>
+                                {u.access_code || "—"}
+                              </code>
+                            </td>
                             <td>{formatDate(u.expiry_date.toDate())}</td>
                           </tr>
                         ))}
